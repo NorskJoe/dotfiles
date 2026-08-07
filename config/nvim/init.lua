@@ -13,6 +13,9 @@ vim.g.maplocalleader = " "
 -- ---------------------------------------------------------------------------
 local opt = vim.opt
 
+opt.expandtab = true
+opt.shiftwidth = 2
+opt.scrolloff = 16
 opt.number = true
 opt.relativenumber = true
 opt.mouse = "a"
@@ -35,23 +38,23 @@ opt.undofile = true
 -- ---------------------------------------------------------------------------
 local map = vim.keymap.set
 map("n", "<leader>w", "<cmd>write<cr>", { desc = "Save" })
-map("n", "<leader>q", "<cmd>quit<cr>", { desc = "Quit" })
-map("n", "<Esc>", "<cmd>nohlsearch<cr>", { desc = "Clear search highlight" })
+-- save by pressing Escape
+map('n', '<Esc>', ':w<CR>', { desc = 'Save' })
+-- select all
+map('n', '<C-a>', 'ggVG', { desc = 'Select All' })
+-- pasting over a selection no longer clobbers your clipboard
+vim.cmd([[ xnoremap <expr> p 'pgv"'.v:register.'y' ]])
 
 -- ---------------------------------------------------------------------------
 --  Plugin manager (lazy.nvim) — TODO
 --  Uncomment the bootstrap below to start adding plugins.
 -- ---------------------------------------------------------------------------
--- local lazypath = vim.fn.stdpath("data") .. "/lazy/lazy.nvim"
--- if not (vim.uv or vim.loop).fs_stat(lazypath) then
---   vim.fn.system({
---     "git", "clone", "--filter=blob:none",
---     "https://github.com/folke/lazy.nvim.git", "--branch=stable", lazypath,
---   })
--- end
--- vim.opt.rtp:prepend(lazypath)
--- require("lazy").setup({
---   -- your plugins go here
---   -- { "nvim-treesitter/nvim-treesitter", build = ":TSUpdate" },
---   -- { "neovim/nvim-lspconfig" },
--- })
+local lazypath = vim.fn.stdpath("data") .. "/lazy/lazy.nvim"
+if not (vim.uv or vim.loop).fs_stat(lazypath) then
+  vim.fn.system({
+    "git", "clone", "--filter=blob:none",
+    "https://github.com/folke/lazy.nvim.git", "--branch=stable", lazypath,
+  })
+end
+vim.opt.rtp:prepend(lazypath)
+require("lazy").setup('plugins')
