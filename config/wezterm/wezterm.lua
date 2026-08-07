@@ -19,16 +19,17 @@ local config = wezterm.config_builder()
 config.default_domain = "WSL:NixOS"
 
 -- --- Appearance (tweak to taste) ---
-config.color_scheme = "Catppuccin Mocha"
+config.initial_cols = 128
+config.initial_rows = 28
+config.color_scheme = "rose-pine-moon"
 config.font = wezterm.font_with_fallback({
   "JetBrains Mono",
   "Symbols Nerd Font Mono",
 })
 config.font_size = 11.0
-config.window_background_opacity = 1.0
+config.window_background_opacity = 0.8
 config.hide_tab_bar_if_only_one_tab = true
-config.window_padding = { left = 6, right = 6, top = 4, bottom = 4 }
-config.scrollback_lines = 10000
+config.window_decorations = "RESIZE"
 
 -- --- Keybindings (add your own) ---
 -- config.keys = {
