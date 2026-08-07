@@ -1,0 +1,42 @@
+{ config, lib, pkgs, inputs, username, ... }:
+{
+  # --- WSL integration (provided by NixOS-WSL) ---
+  wsl.enable = true;
+  wsl.defaultUser = username;
+  # Use the Windows PATH inside WSL so `code`, `explorer.exe`, etc. work.
+  wsl.interop.includePath = true;
+
+  # --- Nix / flakes ---
+  nix.settings.experimental-features = [ "nix-command" "flakes" ];
+  nixpkgs.config.allowUnfree = true;
+
+  # --- VSCode Remote-WSL support ---
+  # nixos-vscode-server patches the downloaded server so it runs on NixOS.
+  services.vscode-server.enable = true;
+  # nix-ld lets other dynamically-linked prebuilt binaries run (LSP servers, etc.).
+  programs.nix-ld.enable = true;
+
+  # --- User ---
+  users.users.${username} = {
+    isNormalUser = true;
+    extraGroups = [ "wheel" ];
+    shell = pkgs.zsh;
+  };
+  programs.zsh.enable = true;
+
+  # --- Base system packages ---
+  environment.systemPackages = with pkgs; [
+    git
+    wget
+    curl
+    gnumake
+    unzip
+  ];
+
+  # Passwordless sudo for the wheel group is convenient in a single-user WSL box.
+  # Remove this if you prefer to type your password.
+  security.sudo.wheelNeedsPassword = false;
+
+  # Do not change after first install unless you know why. Match your NixOS release.
+  system.stateVersion = "26.05";
+}

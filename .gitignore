@@ -1,0 +1,11 @@
+# Nix build result symlinks
+result
+result-*
+
+# Neovim runtime state (created when the config runs)
+config/nvim/lazy-lock.json.bak
+config/nvim/.luarc.json
+
+# Editor / OS noise
+.DS_Store
+*.swp

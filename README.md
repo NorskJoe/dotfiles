@@ -1,0 +1,196 @@
+# dotfiles — NixOS on WSL2 dev environment
+
+Declarative, reproducible WSL2 development environment built on **NixOS** with
+**Flakes** and **Home Manager**.
+
+- **Terminal:** WezTerm (runs on Windows, connects into WSL)
+- **Editor:** Neovim (config template you fill in) + **VSCode** Remote-WSL support
+- **Shell:** zsh (+ starship, zoxide, fzf)
+
+---
+
+## Repository layout
+
+```
+dotfiles/
+├── flake.nix                  # entry point: wires NixOS-WSL + Home Manager + vscode-server
+├── hosts/
+│   └── wsl/
+│       └── configuration.nix  # system-level NixOS config (WSL, users, VSCode support)
+├── home/
+│   ├── home.nix               # Home Manager entry (user packages)
+│   ├── shell.nix              # zsh + prompt config
+│   ├── git.nix                # git identity/config  ← EDIT your name/email
+│   └── neovim.nix             # installs Neovim, symlinks config/nvim
+└── config/
+    ├── nvim/
+    │   └── init.lua           # Neovim template  ← YOURS to fill in
+    └── wezterm/
+        └── wezterm.lua        # WezTerm template (Windows side)  ← YOURS to fill in
+```
+
+---
+
+## Part 1 — Install NixOS on WSL2 (Windows side)
+
+### 0. Prerequisites
+
+Update WSL to a recent version (the modern `.wsl` import format needs WSL ≥ 2.4.4):
+
+```powershell
+wsl --update
+wsl --version   # confirm WSL version 2.x and set default to 2
+wsl --set-default-version 2
+```
+
+### 1. Get the NixOS-WSL image
+
+Download the latest `nixos.wsl` from the releases page:
+<https://github.com/nix-community/NixOS-WSL/releases>
+
+### 2. Import the distro
+
+**Modern WSL (2.4.4+)** — just run the file, or:
+
+```powershell
+wsl --install --from-file nixos.wsl
+```
+
+**Older WSL** — import manually into a folder you control:
+
+```powershell
+wsl --import NixOS C:\WSL\NixOS .\nixos.wsl --version 2
+```
+
+This registers a distro named **`NixOS`** (the name WezTerm targets below).
+
+### 3. First boot
+
+```powershell
+wsl -d NixOS
+```
+
+You are dropped into a working NixOS shell
+
+---
+
+## Part 2 — Apply this configuration (inside WSL)
+
+### 1. Enable flakes for the initial bootstrap
+
+Flakes aren't enabled by default until this config is applied, so pass the flag
+once:
+
+```bash
+# Get git if it isn't already available
+nix-shell -p git
+
+# Clone this repo to ~/dotfiles (the paths in the config assume this location)
+git clone <your-repo-url> ~/dotfiles
+cd ~/dotfiles
+```
+
+### 2. Edit the templates you own
+
+- `home/git.nix` — set `userName` / `userEmail`.
+- `config/nvim/init.lua` — your Neovim config (starts minimal).
+- Optionally change `username` in `flake.nix` if you don't want `nixos`.
+
+### 3. Build & switch
+
+```bash
+sudo nixos-rebuild switch --flake ~/dotfiles#wsl \
+  --option experimental-features "nix-command flakes"
+```
+
+After the first switch, flakes are enabled system-wide and you can just use the
+`rebuild` alias:
+
+```bash
+rebuild        # sudo nixos-rebuild switch --flake ~/dotfiles#wsl
+update         # update flake inputs, then rebuild
+```
+
+### 4. Restart the distro
+
+```powershell
+wsl --shutdown
+wsl -d NixOS
+```
+
+Your zsh shell, Neovim, and CLI tooling are now live.
+
+---
+
+## Part 3 — WezTerm (Windows side)
+
+WezTerm is a Windows GUI app that opens a session into your WSL distro.
+
+1. Install WezTerm on Windows: <https://wezfurlong.org/wezterm/install/windows.html>
+   (or `winget install wez.wezterm`).
+2. Point WezTerm at this repo's config. In an **elevated** PowerShell:
+
+   ```powershell
+   New-Item -ItemType SymbolicLink `
+     -Path "$env:USERPROFILE\.wezterm.lua" `
+     -Target "C:\dev\dotfiles\config\wezterm\wezterm.lua"
+   ```
+
+   (Or copy the file if you prefer not to symlink.)
+
+3. Launch WezTerm — it opens straight into the `NixOS` distro
+   (`config.default_domain = "WSL:NixOS"`).
+
+> If you named the distro something other than `NixOS`, update
+> `default_domain` in `config/wezterm/wezterm.lua`.
+
+---
+
+## Part 4 — VSCode (Remote-WSL)
+
+NixOS needs a little help because VSCode downloads dynamically-linked server
+binaries. This repo already handles that via:
+
+- `services.vscode-server.enable = true;` (from `nixos-vscode-server`) — patches
+  the server so it runs on NixOS.
+- `programs.nix-ld.enable = true;` — lets other prebuilt binaries (LSPs, etc.) run.
+
+To use it:
+
+1. Install the **WSL** extension in VSCode on Windows
+   (`ms-vscode-remote.remote-wsl`).
+2. From WSL, open a folder in VSCode:
+
+   ```bash
+   cd ~/some-project
+   code .
+   ```
+
+   The `code` command is available because `wsl.interop.includePath` exposes the
+   Windows PATH inside WSL.
+
+3. VSCode installs and patches its server automatically; extensions install into
+   the WSL side.
+
+---
+
+## Common tasks
+
+| Task                             | Command                                        |
+| -------------------------------- | ---------------------------------------------- |
+| Rebuild after editing config     | `rebuild`                                      |
+| Update all inputs + rebuild      | `update`                                       |
+| Roll back to previous generation | `sudo nixos-rebuild switch --rollback`         |
+| Free old generations             | `sudo nix-collect-garbage -d`                  |
+| Format Nix files                 | `nix fmt` (add a formatter to the flake first) |
+
+## Notes & decisions
+
+- **Flakes + Home Manager (integrated):** one `nixos-rebuild` applies both system
+  and user config.
+- **Neovim config is a live symlink** (`mkOutOfStoreSymlink`) to
+  `config/nvim/`, so you can iterate without a rebuild.
+- **WezTerm lives on Windows** because the terminal emulator is a host GUI app;
+  only its target distro references WSL.
+- **`stateVersion` is pinned to `26.05`.** Leave it as-is after first install; it
+  is not the same as your package versions.
