@@ -16,10 +16,8 @@
     };
 
     # Makes VSCode Remote-WSL server run correctly on NixOS.
-    vscode-server = {
-      url = "github:nix-community/nixos-vscode-server";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
+    # Note: this flake has no `nixpkgs` input, so there's nothing to `follows`.
+    vscode-server.url = "github:nix-community/nixos-vscode-server";
   };
 
   outputs =

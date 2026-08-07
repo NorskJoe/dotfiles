@@ -3,10 +3,10 @@
   programs.git = {
     enable = true;
 
-    userName = "Joe Johnson";
-    userEmail = "joe.johnson3909@gmail.com";
-
-    extraConfig = {
+    # Home Manager 26.05: config lives under `settings` (mirrors git config keys).
+    settings = {
+      user.name = "Joe Johnson";
+      user.email = "joe.johnson3909@gmail.com";
       init.defaultBranch = "main";
       pull.rebase = true;
       push.autoSetupRemote = true;
