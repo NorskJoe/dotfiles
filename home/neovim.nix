@@ -1,11 +1,17 @@
 { config, pkgs, ... }:
 {
-  programs.neovim = {
-    enable = true;
-    defaultEditor = true;
-    viAlias = true;
-    vimAlias = true;
-    withNodeJs = true; # many LSP servers / plugins expect node
+  # Install Neovim as a plain package. We deliberately do NOT use
+  # `programs.neovim.enable`, because that makes Home Manager manage
+  # ~/.config/nvim/init.lua and collides with the whole-directory symlink below.
+  home.packages = [
+    pkgs.neovim
+    pkgs.nodejs # required by many LSP servers / Neovim plugins
+  ];
+
+  home.sessionVariables.EDITOR = "nvim";
+  home.shellAliases = {
+    vi = "nvim";
+    vim = "nvim";
   };
 
   # Mutable symlink: ~/.config/nvim -> your repo's config/nvim.
