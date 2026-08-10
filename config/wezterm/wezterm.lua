@@ -10,7 +10,6 @@
 --      -Path "$env:USERPROFILE\.wezterm.lua" `
 --      -Target "C:\dev\dotfiles\config\wezterm\wezterm.lua"
 -- =============================================================================
-
 local wezterm = require("wezterm")
 local config = wezterm.config_builder()
 
@@ -19,8 +18,6 @@ local config = wezterm.config_builder()
 config.default_domain = "WSL:NixOS"
 
 -- --- Appearance (tweak to taste) ---
-config.initial_cols = 128
-config.initial_rows = 28
 config.color_scheme = "rose-pine-moon"
 config.font = wezterm.font_with_fallback({
   "JetBrains Mono",
@@ -30,10 +27,49 @@ config.font_size = 11.0
 config.window_background_opacity = 0.8
 config.hide_tab_bar_if_only_one_tab = true
 config.window_decorations = "RESIZE"
+config.underline_thickness = 1
 
 -- --- Keybindings (add your own) ---
--- config.keys = {
---   { key = "n", mods = "CTRL|SHIFT", action = wezterm.action.SpawnWindow },
--- }
+config.leader = { key = 'b', mods = 'CTRL', }
+
+config.keys = {
+  -- Leader + l: horizontal split
+  {
+    key = 'l',
+    mods = 'LEADER',
+    action = wezterm.action.SplitHorizontal { domain = 'CurrentPaneDomain' },
+  },
+  -- Leader + k: vertical split
+  {
+    key = 'k',
+    mods = 'LEADER',
+    action = wezterm.action.SplitVertical { domain = 'CurrentPaneDomain' },
+  },
+  -- Leader + x: close pane
+  {
+    key = 'x',
+    mods = 'LEADER',
+    action = wezterm.action.CloseCurrentPane { confirm = false },
+  }
+}
+
+-- Center the window with a size of 0.7 of the actual screen
+wezterm.on('gui-startup', function(cmd)
+    local screen = wezterm.gui.screens().active
+    local ratio = 0.7
+    local width, height = screen.width * ratio, screen.height * ratio
+    
+    local tab, pane, window = wezterm.mux.spawn_window {
+        domain = { DomainName = "WSL:NixOS" },
+        position = {
+            x = (screen.width - width) / 2,
+            y = (screen.height - height) / 2,
+            origin = 'ActiveScreen'
+        }
+    }
+    
+    -- Apply inner size after spawn to avoid visual jumping
+    window:gui_window():set_inner_size(width, height)
+end)
 
 return config
