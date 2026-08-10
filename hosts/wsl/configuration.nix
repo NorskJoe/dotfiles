@@ -5,6 +5,10 @@
   wsl.defaultUser = username;
   # Use the Windows PATH inside WSL so `code`, `explorer.exe`, etc. work.
   wsl.interop.includePath = true;
+  # Register the binfmt_misc handler so Windows .exe files (e.g. Code.exe) are
+  # routed through /init instead of being exec'd as native binaries. Without
+  # this, `code .` fails with "cannot execute binary file: Exec format error".
+  wsl.interop.register = true;
 
   # --- Nix / flakes ---
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
