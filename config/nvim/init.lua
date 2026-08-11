@@ -32,6 +32,7 @@ opt.wrap = false
 opt.scrolloff = 8
 opt.updatetime = 250
 opt.undofile = true
+opt.foldlevelstart = 99 -- open files with all folds expanded
 
 -- ---------------------------------------------------------------------------
 --  Basic keymaps

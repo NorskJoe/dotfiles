@@ -6,6 +6,35 @@
   home.packages = [
     pkgs.neovim
     pkgs.nodejs # required by many LSP servers / Neovim plugins
+    pkgs.gcc # C compiler used by nvim-treesitter to build parsers
+    pkgs.tree-sitter # tree-sitter CLI required by nvim-treesitter (main branch)
+
+    # LSP servers. Mason's downloaded binaries don't run on NixOS, so the servers
+    # are installed here and wired up by nvim-lspconfig (see config/nvim/.../ide.lua).
+    pkgs.lua-language-server
+    pkgs.nil # Nix
+    pkgs.typescript-language-server
+    pkgs.typescript # tsserver, needed by the TS and Vue language servers
+    pkgs.vue-language-server
+    pkgs.angular-language-server
+    pkgs.vscode-langservers-extracted # html, css, json (+ eslint)
+    pkgs.yaml-language-server
+    pkgs.gopls
+    pkgs.pyright
+    pkgs.roslyn-ls # C# (used via roslyn.nvim)
+    pkgs.clang-tools # clangd + clang-format
+    pkgs.sqls
+    pkgs.bash-language-server
+
+    # Formatters, orchestrated by conform.nvim.
+    pkgs.stylua
+    pkgs.nixfmt
+    pkgs.prettierd
+    pkgs.gofumpt
+    pkgs.ruff
+    pkgs.csharpier
+    pkgs.sql-formatter
+    pkgs.shfmt
   ];
 
   home.sessionVariables.EDITOR = "nvim";
