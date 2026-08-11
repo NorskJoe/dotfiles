@@ -4,6 +4,7 @@
     ./shell.nix
     ./git.nix
     ./neovim.nix
+    ./agents.nix
   ];
 
   home.username = username;
