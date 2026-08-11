@@ -19,6 +19,13 @@
   services.vscode-server.enable = true;
   # nix-ld lets other dynamically-linked prebuilt binaries run (LSP servers, etc.).
   programs.nix-ld.enable = true;
+  # Libraries exposed to nix-ld binaries. Node (installed via nvm) and many
+  # native npm modules need libstdc++/zlib/openssl at runtime.
+  programs.nix-ld.libraries = with pkgs; [
+    stdenv.cc.cc.lib
+    zlib
+    openssl
+  ];
 
   # --- User ---
   users.users.${username} = {
