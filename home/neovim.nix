@@ -6,6 +6,8 @@
   home.packages = [
     pkgs.neovim
     pkgs.nodejs # required by many LSP servers / Neovim plugins
+    pkgs.gcc # C compiler used by nvim-treesitter to build parsers
+    pkgs.tree-sitter # tree-sitter CLI required by nvim-treesitter (main branch)
   ];
 
   home.sessionVariables.EDITOR = "nvim";
