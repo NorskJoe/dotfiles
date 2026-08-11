@@ -174,6 +174,51 @@ To use it:
 
 ---
 
+## Adding a new language to Neovim
+
+Neovim's IDE features live in [`config/nvim/lua/plugins/ide.lua`](config/nvim/lua/plugins/ide.lua),
+and all tooling binaries are installed via Nix in
+[`home/neovim.nix`](home/neovim.nix). **Mason is intentionally not used** —
+its prebuilt binaries don't run on NixOS, so servers/formatters come from Nix.
+
+Adding a language is up to four small steps. Do only the ones you need.
+
+1. **Syntax (Treesitter):** add the parser name to the `ensure_installed`
+   list at the top of `ide.lua`. Parser names differ from filetypes
+   (e.g. `c_sharp`, not `cs`); browse them with `:TSInstall <Tab>`.
+
+2. **LSP server:** install the server with Nix, then enable it.
+   - Add the package to `home.packages` in `home/neovim.nix`. Verify the
+     attribute exists first:
+
+     ```bash
+     nix eval --impure --raw --expr 'let f = builtins.getFlake (toString /home/joe/dotfiles); \
+       p = import f.inputs.nixpkgs { system = "x86_64-linux"; }; \
+       in if builtins.hasAttr "PACKAGE_NAME" p then "OK" else "MISSING"'
+     ```
+
+   - Add the server's lspconfig name to the `vim.lsp.enable({ ... })` list in
+     `ide.lua`. Find the correct name in `:help lspconfig-all` (e.g. the Go
+     server is `gopls`, Rust is `rust_analyzer`). Servers that speak a
+     non-standard protocol (like C#'s `roslyn`) may need a dedicated plugin
+     instead — see the `roslyn.nvim` block for the pattern.
+
+3. **Formatter (conform.nvim):** install the formatter with Nix
+   (step 2's package list), then add a `filetype = { 'formatter' }` entry under
+   `formatters_by_ft` in the `conform.nvim` spec. Format-on-save then applies
+   automatically; manual format is `<leader>cf`.
+
+4. **Apply:** rebuild, then sync plugins:
+
+   ```bash
+   rebuild
+   nvim +Lazy sync +qa   # or run :Lazy sync inside Neovim
+   ```
+
+   Check things loaded with `:checkhealth vim.lsp` and `:ConformInfo`.
+
+---
+
 ## Common tasks
 
 | Task                             | Command                                        |
