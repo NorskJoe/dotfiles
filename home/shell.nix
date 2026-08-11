@@ -22,6 +22,13 @@ in
       mkdir -p "$NVM_DIR"
       source ${nvm}/nvm.sh
       source ${nvm}/bash_completion
+
+      # Report the working directory to the terminal via OSC 7 so WezTerm opens
+      # new panes/tabs (CurrentPaneDomain) in the current pane's directory.
+      _wezterm_osc7() { printf '\033]7;file://%s%s\033\\' "''${HOST}" "''${PWD}"; }
+      autoload -Uz add-zsh-hook
+      add-zsh-hook chpwd _wezterm_osc7
+      _wezterm_osc7
     '';
 
     history = {
