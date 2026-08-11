@@ -59,23 +59,13 @@ config.keys = {
 	},
 }
 
--- Center the window with a size of 0.7 of the actual screen
+-- Spawn the window maximized to fill the screen.
 wezterm.on("gui-startup", function(cmd)
-	local screen = wezterm.gui.screens().active
-	local ratio = 0.7
-	local width, height = screen.width * ratio, screen.height * ratio
-
 	local tab, pane, window = wezterm.mux.spawn_window({
 		domain = { DomainName = "WSL:NixOS" },
-		position = {
-			x = (screen.width - width) / 2,
-			y = (screen.height - height) / 2,
-			origin = "ActiveScreen",
-		},
 	})
 
-	-- Apply inner size after spawn to avoid visual jumping
-	window:gui_window():set_inner_size(width, height)
+	window:gui_window():maximize()
 end)
 
 return config
