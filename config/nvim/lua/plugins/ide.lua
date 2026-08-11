@@ -43,7 +43,13 @@ return {
   {
     'neovim/nvim-lspconfig',
     event = { 'BufReadPre', 'BufNewFile' },
+    dependencies = { 'saghen/blink.cmp' },
     config = function()
+      -- Advertise blink.cmp's completion capabilities to every server.
+      vim.lsp.config('*', {
+        capabilities = require('blink.cmp').get_lsp_capabilities(nil, true),
+      })
+
       vim.lsp.config('lua_ls', {
         settings = { Lua = { diagnostics = { globals = { 'vim' } } } },
       })
@@ -108,5 +114,37 @@ return {
       },
       format_on_save = { timeout_ms = 1000, lsp_format = 'fallback' },
     },
+  },
+
+  -- Autocompletion. blink.cmp provides LSP-driven completion, snippets and a
+  -- signature-help popup. The default fuzzy matcher ships as a prebuilt Rust
+  -- binary that won't run on NixOS, so we use the pure-Lua implementation.
+  {
+    'saghen/blink.cmp',
+    event = { 'InsertEnter', 'CmdlineEnter' },
+    version = '*',
+    opts = {
+      fuzzy = { implementation = 'lua' },
+      keymap = {
+        preset = 'default',
+        ['<Tab>'] = { 'select_and_accept', 'fallback' },
+      },
+      appearance = { nerd_font_variant = 'mono' },
+      completion = {
+        documentation = { auto_show = true, auto_show_delay_ms = 200 },
+      },
+      signature = { enabled = true },
+      sources = {
+        default = { 'lsp', 'path', 'snippets', 'buffer' },
+      },
+    },
+    opts_extend = { 'sources.default' },
+  },
+
+  -- Auto-close brackets, braces, quotes, etc. as you type.
+  {
+    'windwp/nvim-autopairs',
+    event = 'InsertEnter',
+    opts = {},
   },
 }
