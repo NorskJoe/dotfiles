@@ -45,6 +45,11 @@ map('n', '<Esc>', ':w<CR>', { desc = 'Save' })
 map('n', '<C-a>', 'ggVG', { desc = 'Select All' })
 -- pasting over a selection no longer clobbers your clipboard
 vim.cmd([[ xnoremap <expr> p 'pgv"'.v:register.'y' ]])
+-- move lines / selections up and down
+map("n", "<A-j>", ":m .+1<CR>==", { desc = "Move line down" })
+map("n", "<A-k>", ":m .-2<CR>==", { desc = "Move line up" })
+map("v", "<A-j>", ":m '>+1<CR>gv=gv", { desc = "Move selection down" })
+map("v", "<A-k>", ":m '<-2<CR>gv=gv", { desc = "Move selection up" })
 
 -- ---------------------------------------------------------------------------
 --  Plugin manager (lazy.nvim) — TODO

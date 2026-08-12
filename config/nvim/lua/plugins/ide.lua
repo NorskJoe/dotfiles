@@ -48,7 +48,10 @@ return {
 						and pcall(vim.treesitter.language.add, lang)
 					then
 						vim.treesitter.start()
-						vim.bo[args.buf].indentexpr = "v:lua.require'nvim-treesitter'.indentexpr()"
+						-- Indentation is intentionally left to Neovim's built-in
+						-- indenters (runtime/indent/*). The main-branch treesitter
+						-- indenter is experimental and produces worse results for
+						-- most languages we use, so we don't set indentexpr here.
 						vim.wo[0][0].foldexpr = "v:lua.vim.treesitter.foldexpr()"
 						vim.wo[0][0].foldmethod = "expr"
 					end

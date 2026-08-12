@@ -20,6 +20,7 @@
     jq
     tree
     htop
+    dotnet-sdk_9
   ];
 
   # Let Home Manager manage itself.

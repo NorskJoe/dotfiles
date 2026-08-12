@@ -229,6 +229,91 @@ Adding a language is up to four small steps. Do only the ones you need.
 | Free old generations             | `sudo nix-collect-garbage -d`                  |
 | Format Nix files                 | `nix fmt` (add a formatter to the flake first) |
 
+## Troubleshooting
+
+### Corporate VPN breaks `localhost:3000` between Windows and WSL
+
+**Symptoms**
+
+- A service started inside WSL (e.g. a Next.js dev server on port 3000) is no
+  longer reachable from a service running on the Windows host, even though it was
+  working earlier.
+- On opening WSL you see:
+
+  ```
+  wsl: A localhost proxy configuration was detected but not mirrored into WSL.
+  WSL in NAT mode does not support localhost proxies.
+  ```
+
+- `WSL_PAC_URL=http://127.0.0.1:9000/systemproxy-*.pac` shows up in `env`, even
+  after the VPN is disconnected (stale leftover).
+
+**Cause**
+
+A corporate VPN reconfigures Windows loopback/proxy routing when it connects. In
+WSL2 **NAT mode**, Windows and WSL have different `127.0.0.1`, so the Windows
+localhost proxy is meaningless inside WSL, and NAT's IPv4 loopback forwarding to
+the WSL service gets mangled. Disconnecting the VPN often leaves it half-broken.
+
+**How to confirm**
+
+```bash
+# Service is actually up? (bind + local reachability via IPv6 / eth0 IP)
+ss -tlnp | grep 3000
+curl -s -o /dev/null -w "%{http_code}\n" http://[::1]:3000        # works -> 200
+curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:3000    # broken -> 000
+
+# Windows-side view (these honor Windows proxy settings)
+curl.exe -s -o NUL -w "%{http_code}\n" http://127.0.0.1:3000      # broken -> 000
+reg.exe query "HKCU\Software\Microsoft\Windows\CurrentVersion\Internet Settings" /v ProxyEnable
+netsh.exe winhttp show proxy
+```
+
+If IPv6 `::1` and the eth0 IP work but IPv4 `127.0.0.1` returns `000`, it's the
+broken NAT loopback, not an application bug.
+
+**Quick workaround (no restart)**
+
+Point the Windows service at the WSL IP directly instead of `localhost`:
+
+```bash
+ip addr show eth0   # e.g. 172.29.129.214
+# Windows service -> http://172.29.129.214:3000
+```
+
+Note: this NAT IP can change when WSL restarts.
+
+**Durable fix — mirrored networking mode**
+
+Switch WSL to mirrored networking, which shares the Windows network stack (stable
+`localhost` both directions) and tolerates VPN localhost proxies. Create
+`C:\Users\<you>\.wslconfig`:
+
+```ini
+[wsl2]
+networkingMode=mirrored
+
+[experimental]
+autoProxy=true
+hostAddressLoopback=true
+```
+
+Then from **Windows** (PowerShell/CMD, not the WSL shell):
+
+```powershell
+wsl --shutdown
+```
+
+Reopen WSL and verify — the boot warning should be gone and
+`curl http://127.0.0.1:3000` should return `200`. In mirrored mode `ip addr`
+shows your Windows LAN IP rather than a `172.x` NAT address, and `autoProxy=true`
+lets WSL pull the Windows proxy correctly when the VPN reconnects.
+
+> If mirrored mode ever conflicts with the corporate VPN, delete `.wslconfig` and
+> run `wsl --shutdown` to revert to NAT mode.
+
+---
+
 ## Notes & decisions
 
 - **Flakes + Home Manager (integrated):** one `nixos-rebuild` applies both system
