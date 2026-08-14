@@ -18,6 +18,9 @@ in
     syntaxHighlighting.enable = true;
 
     initContent = lib.mkAfter ''
+      # Local secrets (see home/secrets.template.env). Source if present.
+      [ -r "$HOME/.secrets.env" ] && source "$HOME/.secrets.env"
+
       export NVM_DIR="$HOME/.nvm"
       mkdir -p "$NVM_DIR"
       source ${nvm}/nvm.sh

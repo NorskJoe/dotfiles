@@ -106,13 +106,39 @@ return {
 			vim.lsp.config("roslyn", {
 				cmd = {
 					"Microsoft.CodeAnalysis.LanguageServer",
-					"--logLevel=Information",
+					"--logLevel=Warning",
 					"--extensionLogDirectory=" .. vim.fs.joinpath(vim.fn.stdpath("log"), "roslyn"),
 					"--stdio",
 				},
+				-- Server GC: faster initial solution load / analysis on multi-core machines.
+				cmd_env = { DOTNET_gcServer = "1" },
 			})
-			require("roslyn").setup(opts)
+			require("roslyn").setup(
+				vim.tbl_deep_extend("force", {
+					-- Let the server handle file watching. The client-side fallback
+					-- uses an in-process watcher that walks the tree itself (slow).
+					filewatching = "roslyn",
+					-- Don't re-detect the solution on every new buffer.
+					lock_target = true,
+				}, opts)
+			)
 		end,
+	},
+
+	-- LSP progress spinners for every server (roslyn solution loads, gopls,
+	-- pyright, ts_ls, etc.). Only the progress module is used; the notification
+	-- backend is left disabled so it never fights snacks.notifier.
+	{
+		"j-hui/fidget.nvim",
+		event = { "LspAttach" },
+		opts = {
+			progress = {
+				display = { progress_icon = { pattern = "dots" } },
+			},
+			notification = {
+				override_vim_notify = false,
+			},
+		},
 	},
 
 	-- Formatting. Formatters are Nix-installed; conform just runs them.

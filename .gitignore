@@ -9,3 +9,6 @@ config/nvim/.luarc.json
 # Editor / OS noise
 .DS_Store
 *.swp
+
+# Local secrets (home/secrets.template.env is the committed placeholder)
+.secrets.env

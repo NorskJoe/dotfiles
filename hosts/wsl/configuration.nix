@@ -27,10 +27,17 @@
     openssl
   ];
 
+  # --- Docker ---
+  # Runs the Docker daemon inside the WSL2 instance. Containers publish ports to
+  # the WSL2 localhost, which WSL2 mirrors to the Windows host, so tools like
+  # SQL Server Management Studio can connect via `localhost,<port>`.
+  virtualisation.docker.enable = true;
+
   # --- User ---
   users.users.${username} = {
     isNormalUser = true;
-    extraGroups = [ "wheel" ];
+    # "docker" lets this user talk to the daemon without sudo.
+    extraGroups = [ "wheel" "docker" ];
     shell = pkgs.zsh;
   };
   programs.zsh.enable = true;

@@ -21,6 +21,7 @@
     tree
     htop
     dotnet-sdk_9
+    docker-compose
   ];
 
   # Let Home Manager manage itself.
