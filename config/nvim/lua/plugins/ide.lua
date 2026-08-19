@@ -161,87 +161,54 @@ return {
 				end,
 			})
 
-			-- Solution-load timer. roslyn only reports true progress ($/progress)
-			-- for the near-instant Restore phase; it emits nothing during the
-			-- background analysis pass. The only load-lifecycle signal is the
-			-- custom workspace/projectInitializationComplete notification, so we
-			-- show a live elapsed-time counter from attach until that fires.
-			--
-			-- Each entry: { handle = <fidget handle>, start = <hrtime>, timer = <uv timer> }
-			local roslyn_timers = {}
+			-- Persistent "analysing solution" spinner. roslyn only reports true
+			-- progress ($/progress) for the near-instant Restore phase; it emits
+			-- nothing during the background analysis pass. The only load-lifecycle
+			-- signal is the custom workspace/projectInitializationComplete
+			-- notification, so we show an indeterminate fidget spinner from attach
+			-- until that notification fires.
+			local roslyn_spinners = {}
 
-			local function finish(client_id)
-				local entry = roslyn_timers[client_id]
-				if not entry then
-					return
+			local function finish_spinner(client_id)
+				local handle = roslyn_spinners[client_id]
+				if handle then
+					roslyn_spinners[client_id] = nil
+					handle:finish()
 				end
-				roslyn_timers[client_id] = nil
-				if entry.timer then
-					entry.timer:stop()
-					if not entry.timer:is_closing() then
-						entry.timer:close()
-					end
-				end
-				local total = (vim.uv.hrtime() - entry.start) / 1e9
-				entry.handle:report({ message = string.format("Done in %.1fs", total) })
-				entry.handle:finish()
 			end
 
-			-- roslyn registers projectInitializationComplete as a *per-client*
-			-- handler (see roslyn.nvim lsp/roslyn.lua), so overriding the global
-			-- vim.lsp.handlers table would never fire. Wrap the per-client handler
-			-- instead, delegating to the original so its diagnostic refresh runs.
-			local roslyn_handlers = require("roslyn.lsp.handlers")
-			local prev_handler = roslyn_handlers["workspace/projectInitializationComplete"]
-			vim.lsp.config("roslyn", {
-				handlers = {
-					["workspace/projectInitializationComplete"] = function(err, res, ctx)
-						finish(ctx.client_id)
-						if prev_handler then
-							return prev_handler(err, res, ctx)
-						end
-					end,
-				},
-			})
+			-- Delegate through roslyn.nvim's own handler so its diagnostic refresh
+			-- still runs.
+			local prev_handler = vim.lsp.handlers["workspace/projectInitializationComplete"]
+			vim.lsp.handlers["workspace/projectInitializationComplete"] = function(err, res, ctx)
+				finish_spinner(ctx.client_id)
+				if prev_handler then
+					return prev_handler(err, res, ctx)
+				end
+			end
 
 			vim.api.nvim_create_autocmd("LspAttach", {
 				group = group,
 				callback = function(args)
-					local client_id = args.data.client_id
-					local client = vim.lsp.get_client_by_id(client_id)
+					local client = vim.lsp.get_client_by_id(args.data.client_id)
 					if not client or client.name ~= "roslyn" then
 						return
 					end
-					if roslyn_timers[client_id] then
+					if roslyn_spinners[args.data.client_id] then
 						return
 					end
-
-					local handle = require("fidget.progress.handle").create({
-						message = "0.0s",
+					roslyn_spinners[args.data.client_id] = require("fidget.progress.handle").create({
+						title = "",
+						message = "Loading…",
 						lsp_client = { name = "roslyn" },
 					})
-					local start = vim.uv.hrtime()
-					local timer = vim.uv.new_timer()
-					roslyn_timers[client_id] = { handle = handle, start = start, timer = timer }
-
-					-- uv timer callbacks run off the main loop; fidget must run on
-					-- it, so hop back via vim.schedule.
-					timer:start(0, 100, function()
-						vim.schedule(function()
-							if not roslyn_timers[client_id] then
-								return
-							end
-							local elapsed = (vim.uv.hrtime() - start) / 1e9
-							handle:report({ message = string.format("%.1fs", elapsed) })
-						end)
-					end)
 				end,
 			})
 			vim.api.nvim_create_autocmd("LspDetach", {
 				group = group,
 				callback = function(args)
 					if args.data.client_id then
-						finish(args.data.client_id)
+						finish_spinner(args.data.client_id)
 					end
 				end,
 			})
