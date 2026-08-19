@@ -102,13 +102,6 @@ return {
 		"seblj/roslyn.nvim",
 		ft = "cs",
 		opts = {},
-		keys = {
-			{
-				"<leader>cr",
-				"<cmd>LspRestart<cr>",
-				desc = "Restart Roslyn",
-			},
-		},
 		config = function(_, opts)
 			vim.lsp.config("roslyn", {
 				cmd = {
@@ -126,8 +119,8 @@ return {
 				filewatching = "roslyn",
 				-- Don't re-detect the solution on every new buffer.
 				lock_target = true,
-				-- Only analyse open buffers, not the whole solution
-				background_analysis_scope = "openFiles",
+				-- Analyse the whole solution, not just open buffers
+				background_analysis_scope = "fullSolution",
 			}, opts))
 
 			-- New-file visibility fix for roslyn-ls.
@@ -164,6 +157,58 @@ return {
 						client:notify("workspace/didChangeWatchedFiles", {
 							changes = { { uri = uri, type = 1 } }, -- 1 = Created
 						})
+					end
+				end,
+			})
+
+			-- Persistent "analysing solution" spinner. roslyn only reports true
+			-- progress ($/progress) for the near-instant Restore phase; it emits
+			-- nothing during the background analysis pass. The only load-lifecycle
+			-- signal is the custom workspace/projectInitializationComplete
+			-- notification, so we show an indeterminate fidget spinner from attach
+			-- until that notification fires.
+			local roslyn_spinners = {}
+
+			local function finish_spinner(client_id)
+				local handle = roslyn_spinners[client_id]
+				if handle then
+					roslyn_spinners[client_id] = nil
+					handle:finish()
+				end
+			end
+
+			-- Delegate through roslyn.nvim's own handler so its diagnostic refresh
+			-- still runs.
+			local prev_handler = vim.lsp.handlers["workspace/projectInitializationComplete"]
+			vim.lsp.handlers["workspace/projectInitializationComplete"] = function(err, res, ctx)
+				finish_spinner(ctx.client_id)
+				if prev_handler then
+					return prev_handler(err, res, ctx)
+				end
+			end
+
+			vim.api.nvim_create_autocmd("LspAttach", {
+				group = group,
+				callback = function(args)
+					local client = vim.lsp.get_client_by_id(args.data.client_id)
+					if not client or client.name ~= "roslyn" then
+						return
+					end
+					if roslyn_spinners[args.data.client_id] then
+						return
+					end
+					roslyn_spinners[args.data.client_id] = require("fidget.progress.handle").create({
+						title = "",
+						message = "Loading…",
+						lsp_client = { name = "roslyn" },
+					})
+				end,
+			})
+			vim.api.nvim_create_autocmd("LspDetach", {
+				group = group,
+				callback = function(args)
+					if args.data.client_id then
+						finish_spinner(args.data.client_id)
 					end
 				end,
 			})
