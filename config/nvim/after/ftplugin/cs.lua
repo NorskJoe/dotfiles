@@ -16,3 +16,15 @@ vim.schedule(function()
     vim.bo.indentkeys = "0{,0},0),0],:,!^F,o,O,e"
   end
 end)
+
+-- Format a visually-selected raw SQL block through sql-formatter.
+-- Roslyn/csharpier never touch string-literal contents, so this is a manual,
+-- on-demand filter: select the SQL inside the @"..." string, then <leader>cs.
+-- `:!sql-formatter` pipes the selected lines through the external formatter and
+-- replaces them with the result. Output is flush-left (not re-indented to the
+-- string's C# nesting) -- adjust indentation after if desired.
+vim.keymap.set("x", "<leader>cs", ":!sql-formatter<CR>", {
+  buffer = true,
+  silent = true,
+  desc = "Format SQL selection",
+})

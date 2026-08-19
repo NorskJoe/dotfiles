@@ -24,11 +24,14 @@ opt.ignorecase = true
 opt.smartcase = true
 opt.termguicolors = true
 opt.signcolumn = "yes"
+opt.laststatus = 3 -- single global statusline (cleaner)
+opt.showmode = false -- mode shown in statusline, hide the -- INSERT -- text
 opt.expandtab = true
 opt.shiftwidth = 2
 opt.tabstop = 2
 opt.smartindent = true
-opt.wrap = false
+opt.wrap = true
+opt.linebreak = true
 opt.scrolloff = 8
 opt.updatetime = 250
 opt.undofile = true
@@ -50,6 +53,9 @@ map("n", "<A-j>", ":m .+1<CR>==", { desc = "Move line down" })
 map("n", "<A-k>", ":m .-2<CR>==", { desc = "Move line up" })
 map("v", "<A-j>", ":m '>+1<CR>gv=gv", { desc = "Move selection down" })
 map("v", "<A-k>", ":m '<-2<CR>gv=gv", { desc = "Move selection up" })
+-- move by visual (screen) lines so j/k navigate wrapped lines
+map("n", "j", "gj", { desc = "Move down by visual line" })
+map("n", "k", "gk", { desc = "Move up by visual line" })
 
 -- ---------------------------------------------------------------------------
 --  Plugin manager (lazy.nvim) — TODO

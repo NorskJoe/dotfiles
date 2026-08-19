@@ -20,11 +20,13 @@
   # nix-ld lets other dynamically-linked prebuilt binaries run (LSP servers, etc.).
   programs.nix-ld.enable = true;
   # Libraries exposed to nix-ld binaries. Node (installed via nvm) and many
-  # native npm modules need libstdc++/zlib/openssl at runtime.
+  # native npm modules need libstdc++/zlib/openssl at runtime; the C# Dev Kit's
+  # Roslyn language server needs ICU.
   programs.nix-ld.libraries = with pkgs; [
     stdenv.cc.cc.lib
     zlib
     openssl
+    icu
   ];
 
   # --- Docker ---

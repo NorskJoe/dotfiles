@@ -102,6 +102,13 @@ return {
 		"seblj/roslyn.nvim",
 		ft = "cs",
 		opts = {},
+		keys = {
+			{
+				"<leader>cr",
+				"<cmd>LspRestart<cr>",
+				desc = "Restart Roslyn",
+			},
+		},
 		config = function(_, opts)
 			vim.lsp.config("roslyn", {
 				cmd = {
@@ -113,15 +120,53 @@ return {
 				-- Server GC: faster initial solution load / analysis on multi-core machines.
 				cmd_env = { DOTNET_gcServer = "1" },
 			})
-			require("roslyn").setup(
-				vim.tbl_deep_extend("force", {
-					-- Let the server handle file watching. The client-side fallback
-					-- uses an in-process watcher that walks the tree itself (slow).
-					filewatching = "roslyn",
-					-- Don't re-detect the solution on every new buffer.
-					lock_target = true,
-				}, opts)
-			)
+			require("roslyn").setup(vim.tbl_deep_extend("force", {
+				-- Let the server handle file watching. The client-side fallback
+				-- uses an in-process watcher that walks the tree itself (slow).
+				filewatching = "roslyn",
+				-- Don't re-detect the solution on every new buffer.
+				lock_target = true,
+				-- Only analyse open buffers, not the whole solution
+				background_analysis_scope = "openFiles",
+			}, opts))
+
+			-- New-file visibility fix for roslyn-ls.
+			--
+			-- We use `filewatching = "roslyn"` (above) for performance: Neovim's
+			-- client-side watcher is slow on Linux because inotify isn't recursive.
+			-- The downside is that files *created inside Neovim* aren't added to the
+			-- project's compilation until a restart -- a freshly saved .cs file lands
+			-- in Roslyn's "miscellaneous files" workspace, so other files can't see
+			-- the new type in completion or code actions.
+			--
+			-- Fix: when a brand-new .cs buffer is first written to disk, send Roslyn a
+			-- one-shot `didChangeWatchedFiles` "Created" event ourselves. That is the
+			-- exact notification the disabled watcher would have sent, so the project
+			-- system picks the file up immediately -- no restart, no background cost.
+			local group = vim.api.nvim_create_augroup("RoslynNewFile", { clear = true })
+			vim.api.nvim_create_autocmd("BufNewFile", {
+				group = group,
+				pattern = "*.cs",
+				callback = function(args)
+					vim.b[args.buf].roslyn_new_file = true
+				end,
+			})
+			vim.api.nvim_create_autocmd("BufWritePost", {
+				group = group,
+				pattern = "*.cs",
+				callback = function(args)
+					if not vim.b[args.buf].roslyn_new_file then
+						return
+					end
+					vim.b[args.buf].roslyn_new_file = nil
+					local uri = vim.uri_from_fname(args.file)
+					for _, client in ipairs(vim.lsp.get_clients({ name = "roslyn" })) do
+						client:notify("workspace/didChangeWatchedFiles", {
+							changes = { { uri = uri, type = 1 } }, -- 1 = Created
+						})
+					end
+				end,
+			})
 		end,
 	},
 

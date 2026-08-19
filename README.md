@@ -154,6 +154,8 @@ binaries. This repo already handles that via:
 - `services.vscode-server.enable = true;` (from `nixos-vscode-server`) — patches
   the server so it runs on NixOS.
 - `programs.nix-ld.enable = true;` — lets other prebuilt binaries (LSPs, etc.) run.
+  `programs.nix-ld.libraries` includes `icu` for the C# Dev Kit's Roslyn language
+  server, which needs it at runtime.
 
 To use it:
 
@@ -171,6 +173,104 @@ To use it:
 
 3. VSCode installs and patches its server automatically; extensions install into
    the WSL side.
+
+---
+
+## SSH keys for multiple accounts
+
+This environment uses **one SSH key per account**, selected automatically per
+remote by the `Host` matched in `~/.ssh/config`. This file is **not** managed by
+this repo (it lives outside version control), so set it up manually per machine.
+
+Three accounts are in use:
+
+| Account            | Service           | Key                     |
+| ------------------ | ----------------- | ----------------------- |
+| Personal GitHub    | github.com        | `~/.ssh/personal`       |
+| Work Azure DevOps  | ssh.dev.azure.com | `~/.ssh/woolies`        |
+| Work GitHub (org `woolworthslimited`) | github.com | `~/.ssh/woolies-github` |
+
+Personal and work GitHub share the same host (`github.com`), so the work account
+uses a **host alias** (`github-work`) to pick the right key.
+
+### 1. Generate the keys
+
+```bash
+ssh-keygen -t ed25519 -f ~/.ssh/personal       -C "personal-github"
+ssh-keygen -t ed25519 -f ~/.ssh/woolies        -C "woolies-azure-devops"
+ssh-keygen -t ed25519 -f ~/.ssh/woolies-github -C "work-github-woolworthslimited"
+```
+
+(Only generate the ones you don't already have.)
+
+### 2. Configure `~/.ssh/config`
+
+```
+# Personal GitHub Account
+Host github.com
+    HostName github.com
+    User git
+    IdentityFile ~/.ssh/personal
+    IdentitiesOnly yes
+
+# Woolies Azure DevOps Account
+Host ssh.dev.azure.com
+    User git
+    IdentityFile ~/.ssh/woolies
+    IdentitiesOnly yes
+    WarnWeakCrypto no-pq-kex
+
+# Woolies Work GitHub Account (org: woolworthslimited)
+# Use the alias `github-work` in remote URLs to select this key.
+Host github-work
+    HostName github.com
+    User git
+    IdentityFile ~/.ssh/woolies-github
+    IdentitiesOnly yes
+```
+
+### 3. Register the public keys
+
+- **Personal GitHub:** add `~/.ssh/personal.pub` at
+  <https://github.com/settings/keys>.
+- **Work GitHub:** add `~/.ssh/woolies-github.pub` to the work GitHub account at
+  <https://github.com/settings/keys>.
+- **Azure DevOps:** add `~/.ssh/woolies.pub` under *User settings → SSH public keys*.
+
+Print a key to copy it:
+
+```bash
+cat ~/.ssh/woolies-github.pub
+```
+
+### 4. Clone with the right identity
+
+The host in the URL decides which key is used:
+
+```bash
+# Personal
+git clone git@github.com:<you>/<repo>.git
+
+# Work GitHub (note the github-work alias)
+git clone git@github-work:woolworthslimited/<repo>.git
+
+# Azure DevOps
+git clone git@ssh.dev.azure.com:v3/<org>/<project>/<repo>
+```
+
+For an existing work GitHub repo, point its remote at the alias:
+
+```bash
+git remote set-url origin git@github-work:woolworthslimited/<repo>.git
+```
+
+### 5. Verify
+
+```bash
+ssh -T git@github.com     # personal account greeting
+ssh -T git@github-work    # work account greeting
+ssh -T git@ssh.dev.azure.com
+```
 
 ---
 
@@ -311,6 +411,68 @@ lets WSL pull the Windows proxy correctly when the VPN reconnects.
 
 > If mirrored mode ever conflicts with the corporate VPN, delete `.wslconfig` and
 > run `wsl --shutdown` to revert to NAT mode.
+
+### Roslyn doesn't see newly created C# files
+
+When you create a new `.cs` file inside Neovim, Roslyn may not recognise the
+new type from other files (no completion or code actions referencing it) until
+a restart. This is a side effect of `filewatching = "roslyn"` in the
+`roslyn.nvim` block (`ide.lua`), which we use for performance because Neovim's
+own file watcher is slow on Linux. With it enabled, Neovim no longer tells
+Roslyn when a file is created, so the new file stays outside the project's
+compilation.
+
+The `RoslynNewFile` autocmd in `ide.lua` handles this automatically: the first
+time a new `.cs` file is written, it sends Roslyn a `didChangeWatchedFiles`
+"Created" event so the file joins the project immediately - no restart needed.
+
+If a file is ever still missing, `<leader>cr` (`:LspRestart`) forces a full
+Roslyn solution reload as a fallback.
+
+### Webpack / Vite dev server: `ENOSPC: System limit for number of file watchers reached`
+
+**Symptoms**
+
+Running a JS dev server (e.g. `npm run dev`) in this repo fails with:
+
+```
+Watchpack Error (watcher): Error: ENOSPC: System limit for number of file
+watchers reached, watch '/home/joe/...'
+```
+
+The error repeats for every parent directory, down to a single directory like
+`/home`.
+
+**Cause**
+
+WSL2's inotify is broken. `inotify_add_watch` returns `ENOSPC` even when the
+watch count is far below `fs.inotify.max_user_watches` (it can fail to add even
+one watch). This is **not** a watch-count exhaustion issue - raising
+`max_user_watches`/`max_user_instances` (e.g. `524288`) does **not** fix it.
+
+**How to confirm**
+
+```bash
+cat /proc/sys/fs/inotify/max_user_watches  # already 524288 on WSL2 - still fails
+```
+
+**Fix**
+
+Force file-watchers to poll instead of using inotify. This is set globally in
+`home/shell.nix` (zsh `initContent`):
+
+```sh
+export WATCHPACK_POLLING=true
+export CHOKIDAR_USEPOLLING=true
+```
+
+After editing, `rebuild` and open a fresh shell. Or, for a one-off:
+
+```bash
+CHOKIDAR_USEPOLLING=true WATCHPACK_POLLING=true npm run dev
+```
+
+Polling is more CPU-intensive than inotify, but it works reliably on WSL2.
 
 ---
 

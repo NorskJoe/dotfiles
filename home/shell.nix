@@ -21,6 +21,14 @@ in
       # Local secrets (see home/secrets.template.env). Source if present.
       [ -r "$HOME/.secrets.env" ] && source "$HOME/.secrets.env"
 
+      # WSL2's inotify is unreliable: webpack/Vite watchers fail with
+      # "ENOSPC: System limit for number of file watchers reached" even when the
+      # watch count is far below fs.inotify.max_user_watches (it fails to watch
+      # even a single directory). Force file-watchers to poll instead, which
+      # bypasses inotify entirely. See dotfiles README troubleshooting.
+      export WATCHPACK_POLLING=true
+      export CHOKIDAR_USEPOLLING=true
+
       export NVM_DIR="$HOME/.nvm"
       mkdir -p "$NVM_DIR"
       source ${nvm}/nvm.sh
