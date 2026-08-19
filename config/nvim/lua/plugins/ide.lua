@@ -239,6 +239,7 @@ return {
 			keymap = {
 				preset = "default",
 				["<Tab>"] = { "select_and_accept", "fallback" },
+				["<CR>"] = { "select_and_accept", "fallback" },
 			},
 			appearance = { nerd_font_variant = "mono" },
 			completion = {
