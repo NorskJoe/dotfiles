@@ -22,6 +22,7 @@ local ensure_installed = {
 	"vue",
 	"xml",
 	"gitcommit",
+	"http",
 }
 
 return {
