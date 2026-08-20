@@ -31,8 +31,8 @@ config.underline_thickness = 1
 
 -- Make Alt+<key> send proper escape sequences (so <A-j>/<A-k> work in nvim)
 -- instead of Windows treating Left Alt as a compose/dead key.
-config.send_composed_key_when_left_alt_is_down = false
-config.send_composed_key_when_right_alt_is_down = false
+config.send_composed_key_when_left_alt_is_pressed = false
+config.send_composed_key_when_right_alt_is_pressed = false
 
 -- --- Keybindings (add your own) ---
 config.leader = { key = "b", mods = "CTRL" }
@@ -82,7 +82,7 @@ config.key_tables = {
 		{ key = "j", action = wezterm.action.AdjustPaneSize({ "Down", 3 }) },
 		{ key = "k", action = wezterm.action.AdjustPaneSize({ "Up", 3 }) },
 		{ key = "l", action = wezterm.action.AdjustPaneSize({ "Right", 3 }) },
-		{ get = "Escape", action = "PopKeyTable" },
+		{ key = "Escape", action = "PopKeyTable" },
 	},
 }
 
