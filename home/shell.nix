@@ -1,4 +1,9 @@
-{ config, pkgs, lib, ... }:
+{
+  config,
+  pkgs,
+  lib,
+  ...
+}:
 let
   # nvm has no nixpkgs package; pin the release source into the Nix store and
   # source it from zsh. Node versions still install into $NVM_DIR at runtime,
@@ -54,6 +59,7 @@ in
       la = "eza -la --icons --git";
       ls = "eza --icons";
       cat = "bat";
+      glg = "git log --oneline -10";
       ".." = "cd ..";
       # Rebuild the system from this flake. Assumes the repo lives at ~/dotfiles.
       rebuild = "sudo nixos-rebuild switch --flake ~/dotfiles#wsl";
@@ -75,7 +81,7 @@ in
       cmd_duration.format = "[$duration]($style) ";
     };
   };
-  
+
   programs.zoxide.enable = true;
   programs.fzf.enable = true;
 }

@@ -56,11 +56,33 @@ config.keys = {
 		mods = "LEADER",
 		action = wezterm.action.CloseCurrentPane({ confirm = false }),
 	},
-	-- paste from clipboard
+	-- Ctrl + v: paste from clipboard
 	{
 		key = "v",
 		mods = "CTRL",
 		action = wezterm.action.PasteFrom("Clipboard"),
+	},
+	-- Leader + r: start to resize panes
+	{
+		key = "r",
+		mods = "LEADER",
+		action = wezterm.action.ActivateKeyTable({
+			name = "resize_panes",
+			one_shot = false, --  stay active for multiple resize
+			timeout_milliseconds = 1000,
+		}),
+	},
+}
+
+-- keytable for resizing panes
+config.key_tables = {
+	-- Leader + r, h/j/k/l
+	resize_panes = {
+		{ key = "h", action = wezterm.action.AdjustPaneSize({ "Left", 3 }) },
+		{ key = "j", action = wezterm.action.AdjustPaneSize({ "Down", 3 }) },
+		{ key = "k", action = wezterm.action.AdjustPaneSize({ "Up", 3 }) },
+		{ key = "l", action = wezterm.action.AdjustPaneSize({ "Right", 3 }) },
+		{ get = "Escape", action = "PopKeyTable" },
 	},
 }
 
