@@ -43,9 +43,9 @@ opt.foldlevelstart = 99 -- open files with all folds expanded
 local map = vim.keymap.set
 map("n", "<leader>w", "<cmd>write<cr>", { desc = "Save" })
 -- save by pressing Escape
-map('n', '<Esc>', ':w<CR>', { desc = 'Save' })
+map("n", "<Esc>", ":wa<CR>", { desc = "Save All" })
 -- select all
-map('n', '<C-a>', 'ggVG', { desc = 'Select All' })
+map("n", "<C-a>", "ggVG", { desc = "Select All" })
 -- pasting over a selection no longer clobbers your clipboard
 vim.cmd([[ xnoremap <expr> p 'pgv"'.v:register.'y' ]])
 -- move lines / selections up and down
@@ -63,10 +63,14 @@ map("n", "k", "gk", { desc = "Move up by visual line" })
 -- ---------------------------------------------------------------------------
 local lazypath = vim.fn.stdpath("data") .. "/lazy/lazy.nvim"
 if not (vim.uv or vim.loop).fs_stat(lazypath) then
-  vim.fn.system({
-    "git", "clone", "--filter=blob:none",
-    "https://github.com/folke/lazy.nvim.git", "--branch=stable", lazypath,
-  })
+	vim.fn.system({
+		"git",
+		"clone",
+		"--filter=blob:none",
+		"https://github.com/folke/lazy.nvim.git",
+		"--branch=stable",
+		lazypath,
+	})
 end
 vim.opt.rtp:prepend(lazypath)
-require("lazy").setup('plugins')
+require("lazy").setup("plugins")

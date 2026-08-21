@@ -22,6 +22,7 @@
     pkgs.gopls
     pkgs.pyright
     pkgs.roslyn-ls # C# (used via roslyn.nvim)
+    pkgs.inotify-tools # inotifywait: lets Neovim use event-based LSP file watching (roslyn new-file detection) instead of polling
     pkgs.clang-tools # clangd + clang-format
     pkgs.sqls
     pkgs.bash-language-server

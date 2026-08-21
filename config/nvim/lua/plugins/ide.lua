@@ -120,54 +120,32 @@ return {
 				},
 				-- Server GC: faster initial solution load / analysis on multi-core machines.
 				cmd_env = { DOTNET_gcServer = "1" },
+				-- Force-advertise file-watching support. Neovim disables this by
+				-- default on Linux (protocol.lua: dynamicRegistration is only true on
+				-- macOS/Windows), which makes roslyn-ls fall back to its own flaky
+				-- in-process watcher and miss files created mid-session. With this on,
+				-- Neovim drives the watching, so new files (oil, `:w`, external) are
+				-- added to the loaded solution live. Needs `filewatching = "auto"`
+				-- below (the "roslyn"/"off" modes force this capability back off).
+				capabilities = {
+					workspace = {
+						didChangeWatchedFiles = { dynamicRegistration = true },
+					},
+				},
 			})
 			require("roslyn").setup(vim.tbl_deep_extend("force", {
-				-- Let the server handle file watching. The client-side fallback
-				-- uses an in-process watcher that walks the tree itself (slow).
-				filewatching = "roslyn",
+				-- Let Neovim do the file watching. It registers the watchers the
+				-- server asks for and sends `didChangeWatchedFiles` on its own, so
+				-- files created/renamed/deleted during a session (via oil, `:w`, or
+				-- externally) are added to the loaded solution without a restart.
+				-- The server's own watcher is unreliable here (WSL/inotify), which
+				-- left new files stranded in the "miscellaneous files" workspace.
+				filewatching = "auto",
 				-- Don't re-detect the solution on every new buffer.
 				lock_target = true,
 				-- Only analyse open buffers, not the whole solution
 				background_analysis_scope = "openFiles",
 			}, opts))
-
-			-- New-file visibility fix for roslyn-ls.
-			--
-			-- We use `filewatching = "roslyn"` (above) for performance: Neovim's
-			-- client-side watcher is slow on Linux because inotify isn't recursive.
-			-- The downside is that files *created inside Neovim* aren't added to the
-			-- project's compilation until a restart -- a freshly saved .cs file lands
-			-- in Roslyn's "miscellaneous files" workspace, so other files can't see
-			-- the new type in completion or code actions.
-			--
-			-- Fix: when a brand-new .cs buffer is first written to disk, send Roslyn a
-			-- one-shot `didChangeWatchedFiles` "Created" event ourselves. That is the
-			-- exact notification the disabled watcher would have sent, so the project
-			-- system picks the file up immediately -- no restart, no background cost.
-			local group = vim.api.nvim_create_augroup("RoslynNewFile", { clear = true })
-			vim.api.nvim_create_autocmd("BufNewFile", {
-				group = group,
-				pattern = "*.cs",
-				callback = function(args)
-					vim.b[args.buf].roslyn_new_file = true
-				end,
-			})
-			vim.api.nvim_create_autocmd("BufWritePost", {
-				group = group,
-				pattern = "*.cs",
-				callback = function(args)
-					if not vim.b[args.buf].roslyn_new_file then
-						return
-					end
-					vim.b[args.buf].roslyn_new_file = nil
-					local uri = vim.uri_from_fname(args.file)
-					for _, client in ipairs(vim.lsp.get_clients({ name = "roslyn" })) do
-						client:notify("workspace/didChangeWatchedFiles", {
-							changes = { { uri = uri, type = 1 } }, -- 1 = Created
-						})
-					end
-				end,
-			})
 		end,
 	},
 
