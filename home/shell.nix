@@ -2,9 +2,11 @@
   config,
   pkgs,
   lib,
+  platform ? "wsl",
   ...
 }:
 let
+  isWSL = platform == "wsl";
   # nvm has no nixpkgs package; pin the release source into the Nix store and
   # source it from zsh. Node versions still install into $NVM_DIR at runtime,
   # and nix-ld (enabled in the WSL host config) lets those prebuilt binaries run.
@@ -25,7 +27,7 @@ in
     initContent = lib.mkAfter ''
       # Local secrets (see home/secrets.template.env). Source if present.
       [ -r "$HOME/.secrets.env" ] && source "$HOME/.secrets.env"
-
+${lib.optionalString isWSL ''
       # WSL2's inotify is unreliable: webpack/Vite watchers fail with
       # "ENOSPC: System limit for number of file watchers reached" even when the
       # watch count is far below fs.inotify.max_user_watches (it fails to watch
@@ -33,7 +35,7 @@ in
       # bypasses inotify entirely. See dotfiles README troubleshooting.
       export WATCHPACK_POLLING=true
       export CHOKIDAR_USEPOLLING=true
-
+''}
       export NVM_DIR="$HOME/.nvm"
       mkdir -p "$NVM_DIR"
       source ${nvm}/nvm.sh
@@ -61,11 +63,20 @@ in
       cat = "bat";
       glg = "git log --oneline -10";
       ".." = "cd ..";
-      # Rebuild the system from this flake. Assumes the repo lives at ~/dotfiles.
-      rebuild = "sudo nixos-rebuild switch --flake ~/dotfiles#wsl";
-      # Update flake inputs then rebuild.
-      update = "nix flake update ~/dotfiles && sudo nixos-rebuild switch --flake ~/dotfiles#wsl";
-    };
+    } // (
+      if isWSL then {
+        # Rebuild the whole NixOS system from this flake. Assumes the repo lives
+        # at ~/dotfiles.
+        rebuild = "sudo nixos-rebuild switch --flake ~/dotfiles#wsl";
+        # Update flake inputs then rebuild.
+        update = "nix flake update ~/dotfiles && sudo nixos-rebuild switch --flake ~/dotfiles#wsl";
+      } else {
+        # Native Ubuntu: standalone home-manager manages the user profile only.
+        rebuild = "home-manager switch --flake ~/dotfiles#${config.home.username}@ubuntu";
+        # Update flake inputs then rebuild.
+        update = "nix flake update ~/dotfiles && home-manager switch --flake ~/dotfiles#${config.home.username}@ubuntu";
+      }
+    );
   };
 
   # Prompt + navigation helpers. Remove any you don't want.

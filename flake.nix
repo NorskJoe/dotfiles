@@ -1,5 +1,5 @@
 {
-  description = "NixOS on WSL2 dev environment (WezTerm + Neovim + VSCode)";
+  description = "Cross-platform dev environment (NixOS-WSL + native Ubuntu) - WezTerm + Neovim + VSCode";
 
   inputs = {
     # Pinned to the latest stable NixOS release.
@@ -24,10 +24,11 @@
     { self, nixpkgs, nixos-wsl, home-manager, vscode-server, ... }@inputs:
     let
       system = "x86_64-linux";
-      # Default user for the WSL distro. Change here if you want a different login.
+      # Default user. Change here if you want a different login.
       username = "joe";
     in
     {
+      # --- NixOS-WSL: manages the whole OS ---
       nixosConfigurations.wsl = nixpkgs.lib.nixosSystem {
         inherit system;
         specialArgs = { inherit inputs username; };
@@ -40,10 +41,25 @@
           {
             home-manager.useGlobalPkgs = true;
             home-manager.useUserPackages = true;
-            home-manager.extraSpecialArgs = { inherit username; };
+            home-manager.extraSpecialArgs = {
+              inherit username;
+              platform = "wsl";
+            };
             home-manager.users.${username} = import ./home/home.nix;
           }
         ];
       };
+
+      # --- Native Ubuntu: standalone home-manager, manages the user profile only ---
+      # Apply with: home-manager switch --flake ~/dotfiles#joe@ubuntu
+      homeConfigurations."${username}@ubuntu" =
+        home-manager.lib.homeManagerConfiguration {
+          pkgs = nixpkgs.legacyPackages.${system};
+          extraSpecialArgs = {
+            inherit username;
+            platform = "ubuntu";
+          };
+          modules = [ ./home/ubuntu.nix ];
+        };
     };
 }

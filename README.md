@@ -1,11 +1,22 @@
-# dotfiles — NixOS on WSL2 dev environment
+# dotfiles - cross-platform dev environment
 
-Declarative, reproducible WSL2 development environment built on **NixOS** with
-**Flakes** and **Home Manager**.
+Declarative, reproducible development environment built on **Nix** with
+**Flakes** and **Home Manager**. Two targets, one branch, shared config:
 
-- **Terminal:** WezTerm (runs on Windows, connects into WSL)
-- **Editor:** Neovim (config template you fill in) + **VSCode** Remote-WSL support
+- **NixOS on WSL2** - Nix manages the whole OS (`nixosConfigurations.wsl`).
+- **Native Ubuntu** - stock Ubuntu, Nix manages only your user profile via
+  standalone Home Manager (`homeConfigurations."joe@ubuntu"`).
+
+Common tooling on both:
+
+- **Editor:** Neovim (config template you fill in) + LSPs/formatters via Nix
 - **Shell:** zsh (+ starship, zoxide, fzf)
+- **Terminal:** WezTerm (WSL only; runs on Windows, connects into WSL)
+- **VSCode** Remote-WSL support (WSL only)
+
+The shared Home Manager modules live in `home/` and are imported by both
+targets. OS-specific behaviour (rebuild aliases, WSL inotify workaround) is
+branched on a `platform` argument passed from `flake.nix`.
 
 ---
 
@@ -13,21 +24,32 @@ Declarative, reproducible WSL2 development environment built on **NixOS** with
 
 ```
 dotfiles/
-├── flake.nix                  # entry point: wires NixOS-WSL + Home Manager + vscode-server
+├── flake.nix                  # entry point: nixosConfigurations.wsl + homeConfigurations."joe@ubuntu"
 ├── hosts/
 │   └── wsl/
 │       └── configuration.nix  # system-level NixOS config (WSL, users, VSCode support)
 ├── home/
-│   ├── home.nix               # Home Manager entry (user packages)
-│   ├── shell.nix              # zsh + prompt config
+│   ├── common.nix             # shared Home Manager base (imports + shared packages)
+│   ├── home.nix               # WSL entrypoint (imports common.nix)
+│   ├── ubuntu.nix             # native Ubuntu entrypoint (imports common.nix, allowUnfree)
+│   ├── shell.nix              # zsh + prompt config (platform-aware aliases)
 │   ├── git.nix                # git identity/config  ← EDIT your name/email
-│   └── neovim.nix             # installs Neovim, symlinks config/nvim
+│   ├── agents.nix             # opencode + shared AGENTS.md
+│   └── neovim.nix             # installs Neovim + LSPs, symlinks config/nvim
+├── scripts/
+│   └── bootstrap-ubuntu.sh    # one-shot setup for a fresh native Ubuntu box
 └── config/
     ├── nvim/
     │   └── init.lua           # Neovim template  ← YOURS to fill in
     └── wezterm/
         └── wezterm.lua        # WezTerm template (Windows side)  ← YOURS to fill in
 ```
+
+> **NixOS-WSL vs native Ubuntu.** Ubuntu is not NixOS, so `nixosConfigurations`
+> cannot manage it. On Ubuntu you install the Nix package manager and apply the
+> standalone Home Manager config, which reuses every module under `home/`.
+> Because Ubuntu is a normal glibc/FHS system, the `nix-ld` and `vscode-server`
+> shims that WSL/NixOS needs are not required there.
 
 ---
 
@@ -173,6 +195,59 @@ To use it:
 
 3. VSCode installs and patches its server automatically; extensions install into
    the WSL side.
+
+---
+
+## Part 5 — Native Ubuntu (not WSL)
+
+On a full Ubuntu install, Nix manages **only your user profile** via standalone
+Home Manager; apt still owns the base OS. This is fully reversible (Home Manager
+generations + uninstalling Nix).
+
+### Quick start (bootstrap script)
+
+```bash
+# 1. Get the repo to ~/dotfiles (the config paths assume this location).
+sudo apt-get update && sudo apt-get install -y git
+git clone <your-repo-url> ~/dotfiles
+
+# 2. Run the bootstrap: installs Nix (flakes), applies the config, offers zsh.
+~/dotfiles/scripts/bootstrap-ubuntu.sh
+```
+
+The script is idempotent and safe to re-run. It:
+
+1. Installs Nix via the Determinate Systems installer (flakes on by default).
+2. Runs `home-manager switch --flake ~/dotfiles#joe@ubuntu`.
+3. Optionally sets zsh as your login shell.
+
+Open a new terminal afterwards. Your zsh, Neovim, and CLI tooling are live.
+
+### Manual steps (equivalent)
+
+```bash
+# Install Nix (flakes enabled by default)
+curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install
+
+# New shell, then apply the config
+nix run home-manager/release-26.05 -- switch --flake ~/dotfiles#joe@ubuntu
+
+# (optional) make zsh your login shell
+chsh -s "$HOME/.nix-profile/bin/zsh"
+```
+
+### Day-to-day on Ubuntu
+
+The `rebuild` / `update` aliases are automatically wired to Home Manager here
+(not `nixos-rebuild`):
+
+```bash
+rebuild        # home-manager switch --flake ~/dotfiles#joe@ubuntu
+update         # update flake inputs, then switch
+```
+
+> Change `username` in `flake.nix` if your Ubuntu login is not `joe`; the config
+> key becomes `<username>@ubuntu`.
 
 ---
 
@@ -325,8 +400,9 @@ Adding a language is up to four small steps. Do only the ones you need.
 | -------------------------------- | ---------------------------------------------- |
 | Rebuild after editing config     | `rebuild`                                      |
 | Update all inputs + rebuild      | `update`                                       |
-| Roll back to previous generation | `sudo nixos-rebuild switch --rollback`         |
-| Free old generations             | `sudo nix-collect-garbage -d`                  |
+| Roll back (WSL)                  | `sudo nixos-rebuild switch --rollback`         |
+| Roll back (Ubuntu)               | `home-manager generations` then activate one   |
+| Free old generations             | `sudo nix-collect-garbage -d` (`--delete-older-than 7d` for user profile on Ubuntu) |
 | Format Nix files                 | `nix fmt` (add a formatter to the flake first) |
 
 ## Troubleshooting
@@ -478,8 +554,9 @@ Polling is more CPU-intensive than inotify, but it works reliably on WSL2.
 
 ## Notes & decisions
 
-- **Flakes + Home Manager (integrated):** one `nixos-rebuild` applies both system
-  and user config.
+- **Flakes + Home Manager:** on WSL, one `nixos-rebuild` applies both system and
+  user config; on native Ubuntu, standalone `home-manager switch` applies the
+  user config only. Both share the modules in `home/`.
 - **Neovim config is a live symlink** (`mkOutOfStoreSymlink`) to
   `config/nvim/`, so you can iterate without a rebuild.
 - **WezTerm lives on Windows** because the terminal emulator is a host GUI app;

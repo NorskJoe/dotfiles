@@ -1,32 +1,7 @@
 { config, pkgs, username, ... }:
 {
-  imports = [
-    ./shell.nix
-    ./git.nix
-    ./neovim.nix
-    ./agents.nix
-  ];
-
-  home.username = username;
-  home.homeDirectory = "/home/${username}";
-
-  # User-level CLI tooling. Add your own here.
-  home.packages = with pkgs; [
-    ripgrep
-    fd
-    fzf
-    bat
-    eza
-    jq
-    tree
-    htop
-    dotnet-sdk_9
-    docker-compose
-  ];
-
-  # Let Home Manager manage itself.
-  programs.home-manager.enable = true;
-
-  # Do not change after first install. Match your NixOS release.
-  home.stateVersion = "26.05";
+  # WSL (NixOS) home configuration. Shared config lives in ./common.nix; this
+  # file only adds WSL-specific home settings (currently none beyond the platform
+  # flag, which is passed in via extraSpecialArgs from flake.nix).
+  imports = [ ./common.nix ];
 }
