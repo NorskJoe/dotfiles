@@ -1,11 +1,19 @@
 -- =============================================================================
---  WezTerm configuration template  (runs on WINDOWS, not inside WSL)
+--  WezTerm configuration template  (shared across Windows and native Linux)
 --
---  Install location on Windows (pick one):
+--  This single file supports two setups, detected at runtime via
+--  wezterm.target_triple:
+--    * Windows  -> WezTerm runs on Windows and launches into the "NixOS" WSL
+--                  distro. Install by symlinking to %USERPROFILE% (see below).
+--    * Linux    -> WezTerm runs natively (e.g. on Ubuntu). No WSL is involved;
+--                  it opens a normal local shell. Installed + symlinked to
+--                  ~/.config/wezterm by home-manager (see home/wezterm.nix).
+--
+--  Windows install location (pick one):
 --    %USERPROFILE%\.wezterm.lua
 --    %USERPROFILE%\.config\wezterm\wezterm.lua
 --
---  Easiest: symlink it from this repo (run in an *elevated* PowerShell):
+--  Easiest on Windows: symlink it from this repo (run in an *elevated* PowerShell):
 --    New-Item -ItemType SymbolicLink `
 --      -Path "$env:USERPROFILE\.wezterm.lua" `
 --      -Target "C:\dev\dotfiles\config\wezterm\wezterm.lua"
@@ -13,9 +21,17 @@
 local wezterm = require("wezterm")
 local config = wezterm.config_builder()
 
--- --- Launch straight into the NixOS WSL distro ---
--- The distro name must match what you imported (see README). Default: "NixOS".
-config.default_domain = "WSL:NixOS"
+-- True when WezTerm is running on Windows (and thus reaches into WSL). On native
+-- Linux this is false and WezTerm just uses the local default domain.
+local is_windows = wezterm.target_triple:find("windows") ~= nil
+
+-- The WSL distro name must match what you imported (see README). Default: "NixOS".
+local wsl_domain = "WSL:NixOS"
+
+-- --- Launch straight into the NixOS WSL distro (Windows only) ---
+if is_windows then
+	config.default_domain = wsl_domain
+end
 
 -- --- Appearance (tweak to taste) ---
 config.color_scheme = "rose-pine-moon"
@@ -86,11 +102,14 @@ config.key_tables = {
 	},
 }
 
--- Spawn the window maximized to fill the screen.
+-- Spawn the window maximized to fill the screen. On Windows, open it directly in
+-- the WSL distro; on native Linux, open a normal local window.
 wezterm.on("gui-startup", function(cmd)
-	local tab, pane, window = wezterm.mux.spawn_window({
-		domain = { DomainName = "WSL:NixOS" },
-	})
+	local spawn_args = {}
+	if is_windows then
+		spawn_args.domain = { DomainName = wsl_domain }
+	end
+	local tab, pane, window = wezterm.mux.spawn_window(spawn_args)
 
 	window:gui_window():maximize()
 end)

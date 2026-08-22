@@ -23,6 +23,8 @@
     jq
     tree
     htop
+    gnumake
+    unzip
     dotnet-sdk_9
     docker-compose
   ];

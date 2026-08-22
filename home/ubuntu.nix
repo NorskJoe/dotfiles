@@ -2,7 +2,10 @@
 {
   # Native Ubuntu home configuration (standalone home-manager, no NixOS).
   # Shared config lives in ./common.nix; add Ubuntu-only home settings here.
-  imports = [ ./common.nix ];
+  imports = [
+    ./common.nix
+    ./wezterm.nix
+  ];
 
   # Standalone home-manager evaluates its own nixpkgs, so unfree must be allowed
   # here (on WSL this came from the NixOS host config). Needed for dotnet,

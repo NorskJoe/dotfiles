@@ -63,5 +63,20 @@ if [ -x "$ZSH_BIN" ]; then
   fi
 fi
 
+# 6. Optionally install Docker. home-manager cannot run the daemon or manage the
+#    docker group, so the engine comes from apt. The docker-compose CLI is
+#    already provided by Nix. Skipped if docker is already present.
+if ! command -v docker >/dev/null 2>&1; then
+  printf '\033[1;34m==>\033[0m Install Docker engine via apt and add you to the docker group? [y/N] '
+  read -r reply
+  if [ "${reply:-}" = "y" ] || [ "${reply:-}" = "Y" ]; then
+    sudo apt-get update && sudo apt-get install -y docker.io
+    sudo usermod -aG docker "$USER"
+    warn "Log out and back in (or run 'newgrp docker') to pick up the docker group."
+  else
+    info "Skipping Docker. Install later with: sudo apt-get install -y docker.io && sudo usermod -aG docker \$USER"
+  fi
+fi
+
 info "Done. Open a new terminal to start using your environment."
 info "Rebuild later with:  rebuild   (alias for home-manager switch)"

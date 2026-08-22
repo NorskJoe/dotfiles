@@ -1,18 +1,22 @@
 # dotfiles - cross-platform dev environment
 
 Declarative, reproducible development environment built on **Nix** with
-**Flakes** and **Home Manager**. Two targets, one branch, shared config:
+**Flakes** and **Home Manager**. Two **independent** targets, one branch, shared
+config:
 
 - **NixOS on WSL2** - Nix manages the whole OS (`nixosConfigurations.wsl`).
 - **Native Ubuntu** - stock Ubuntu, Nix manages only your user profile via
-  standalone Home Manager (`homeConfigurations."joe@ubuntu"`).
+  standalone Home Manager (`homeConfigurations."joe@ubuntu"`). This does **not**
+  use WSL - WSL is only relevant on the Windows side of the WSL target.
 
 Common tooling on both:
 
 - **Editor:** Neovim (config template you fill in) + LSPs/formatters via Nix
 - **Shell:** zsh (+ starship, zoxide, fzf)
-- **Terminal:** WezTerm (WSL only; runs on Windows, connects into WSL)
-- **VSCode** Remote-WSL support (WSL only)
+- **Terminal:** WezTerm - runs **natively** on Ubuntu (installed via Nix); on the
+  WSL target it runs on **Windows** and connects into the distro. One shared,
+  platform-aware `wezterm.lua`.
+- **VSCode** Remote-WSL support (WSL target only)
 
 The shared Home Manager modules live in `home/` and are imported by both
 targets. OS-specific behaviour (rebuild aliases, WSL inotify workaround) is
@@ -35,6 +39,7 @@ dotfiles/
 │   ├── shell.nix              # zsh + prompt config (platform-aware aliases)
 │   ├── git.nix                # git identity/config  ← EDIT your name/email
 │   ├── agents.nix             # opencode + shared AGENTS.md
+│   ├── wezterm.nix            # Ubuntu only: installs WezTerm, symlinks config/wezterm
 │   └── neovim.nix             # installs Neovim + LSPs, symlinks config/nvim
 ├── scripts/
 │   └── bootstrap-ubuntu.sh    # one-shot setup for a fresh native Ubuntu box
@@ -42,7 +47,7 @@ dotfiles/
     ├── nvim/
     │   └── init.lua           # Neovim template  ← YOURS to fill in
     └── wezterm/
-        └── wezterm.lua        # WezTerm template (Windows side)  ← YOURS to fill in
+        └── wezterm.lua        # shared WezTerm config (native on Linux / Windows-side for WSL)
 ```
 
 > **NixOS-WSL vs native Ubuntu.** Ubuntu is not NixOS, so `nixosConfigurations`
@@ -144,9 +149,10 @@ Your zsh shell, Neovim, and CLI tooling are now live.
 
 ---
 
-## Part 3 — WezTerm (Windows side)
+## Part 3 — WezTerm (WSL target, Windows side)
 
-WezTerm is a Windows GUI app that opens a session into your WSL distro.
+For the WSL target, WezTerm is a Windows GUI app that opens a session into your
+WSL distro. (On native Ubuntu, WezTerm runs directly - see Part 5.)
 
 1. Install WezTerm on Windows: <https://wezfurlong.org/wezterm/install/windows.html>
    (or `winget install wez.wezterm`).
@@ -220,8 +226,30 @@ The script is idempotent and safe to re-run. It:
 1. Installs Nix via the Determinate Systems installer (flakes on by default).
 2. Runs `home-manager switch --flake ~/dotfiles#joe@ubuntu`.
 3. Optionally sets zsh as your login shell.
+4. Optionally installs the Docker engine via apt (see below).
 
-Open a new terminal afterwards. Your zsh, Neovim, and CLI tooling are live.
+Open a new terminal afterwards. Your zsh, Neovim, WezTerm, and CLI tooling are
+live.
+
+### WezTerm on Ubuntu
+
+WezTerm is installed by Nix (`home/wezterm.nix`) and runs **natively** - there is
+no WSL and no `WSL:NixOS` domain involved. Its config at `~/.config/wezterm` is a
+live symlink to `config/wezterm/wezterm.lua`, the same file used on Windows; it
+detects the platform at runtime (`wezterm.target_triple`) and only enables the
+WSL domain on Windows. Just launch WezTerm from your desktop environment.
+
+### Docker on Ubuntu
+
+Home Manager cannot run a system daemon or manage the `docker` group, so the
+Docker **engine** comes from apt while the `docker-compose` CLI comes from Nix.
+The bootstrap script offers to do this; to set it up manually:
+
+```bash
+sudo apt-get update && sudo apt-get install -y docker.io
+sudo usermod -aG docker "$USER"
+# Log out and back in (or run `newgrp docker`) to pick up the group.
+```
 
 ### Manual steps (equivalent)
 
