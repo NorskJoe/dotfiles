@@ -38,6 +38,21 @@ opt.undofile = true
 opt.foldlevelstart = 99 -- open files with all folds expanded
 
 -- ---------------------------------------------------------------------------
+--  Diagnostics
+--  Errors render inline on their own lines automatically (virtual_lines).
+--  Warnings/Info are only signalled by signs/underline; read them on demand
+--  with <leader>d (open_float).
+-- ---------------------------------------------------------------------------
+vim.diagnostic.config({
+	virtual_lines = { severity = vim.diagnostic.severity.ERROR },
+	virtual_text = false,
+	signs = true,
+	underline = true,
+	severity_sort = true,
+	float = { border = "rounded", source = true },
+})
+
+-- ---------------------------------------------------------------------------
 --  Basic keymaps
 -- ---------------------------------------------------------------------------
 local map = vim.keymap.set
@@ -46,6 +61,8 @@ map("n", "<leader>w", "<cmd>write<cr>", { desc = "Save" })
 map("n", "<Esc>", ":wa<CR>", { desc = "Save All" })
 -- select all
 map("n", "<C-a>", "ggVG", { desc = "Select All" })
+-- show full diagnostic message (all severities) under the cursor
+map("n", "<leader>d", vim.diagnostic.open_float, { desc = "Diagnostic Float" })
 -- pasting over a selection no longer clobbers your clipboard
 vim.cmd([[ xnoremap <expr> p 'pgv"'.v:register.'y' ]])
 -- move lines / selections up and down
