@@ -27,6 +27,9 @@
     pkgs.sqls
     pkgs.bash-language-server
 
+    # Debug adapters, driven by nvim-dap (see config/nvim/.../dap.lua).
+    pkgs.netcoredbg # CoreCLR debugger for .NET/C# stepping
+
     # Formatters, orchestrated by conform.nvim.
     pkgs.stylua
     pkgs.nixfmt

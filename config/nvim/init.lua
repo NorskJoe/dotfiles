@@ -62,7 +62,7 @@ map("n", "<Esc>", ":wa<CR>", { desc = "Save All" })
 -- select all
 map("n", "<C-a>", "ggVG", { desc = "Select All" })
 -- show full diagnostic message (all severities) under the cursor
-map("n", "<leader>d", vim.diagnostic.open_float, { desc = "Diagnostic Float" })
+map("n", "<leader>xd", vim.diagnostic.open_float, { desc = "Diagnostic Float" })
 -- pasting over a selection no longer clobbers your clipboard
 vim.cmd([[ xnoremap <expr> p 'pgv"'.v:register.'y' ]])
 -- move lines / selections up and down
