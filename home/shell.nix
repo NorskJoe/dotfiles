@@ -41,6 +41,9 @@ ${lib.optionalString isWSL ''
       source ${nvm}/nvm.sh
       source ${nvm}/bash_completion
 
+      # Set CHROME_BIN for karma tests (headless Chrome with Chromium)
+      export CHROME_BIN="${pkgs.chromium}/bin/chromium"
+
       # Report the working directory to the terminal via OSC 7 so WezTerm opens
       # new panes/tabs (CurrentPaneDomain) in the current pane's directory.
       _wezterm_osc7() { printf '\033]7;file://%s%s\033\\' "''${HOST}" "''${PWD}"; }

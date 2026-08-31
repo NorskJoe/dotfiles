@@ -15,6 +15,7 @@
 
   # User-level CLI tooling shared across all machines. Add your own here.
   home.packages = with pkgs; [
+    chromium
     ripgrep
     fd
     fzf
