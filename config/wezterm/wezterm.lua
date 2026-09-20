@@ -40,10 +40,11 @@ config.font = wezterm.font_with_fallback({
 	"Symbols Nerd Font Mono",
 })
 config.font_size = 11.0
-config.window_background_opacity = 0.8
+config.window_background_opacity = 0.9
 config.hide_tab_bar_if_only_one_tab = true
-config.window_decorations = "RESIZE"
 config.underline_thickness = 1
+config.window_close_confirmation = "NeverPrompt"
+-- config.window_decorations = "RESIZE"
 
 -- Make Alt+<key> send proper escape sequences (so <A-j>/<A-k> work in nvim)
 -- instead of Windows treating Left Alt as a compose/dead key.
@@ -111,7 +112,9 @@ wezterm.on("gui-startup", function(cmd)
 	end
 	local tab, pane, window = wezterm.mux.spawn_window(spawn_args)
 
-	window:gui_window():maximize()
+	-- window:gui_window():maximize()
+	local active_screen = wezterm.gui.screens()["active"];
+	window:gui_window():set_inner_size(active_screen.width * 0.8, active_screen.height * 0.8)
 end)
 
 return config
