@@ -13,6 +13,7 @@ local ensure_installed = {
 	"html",
 	"javascript",
 	"typescript",
+	"tsx",
 	"json",
 	"prisma",
 	"python",
@@ -42,6 +43,10 @@ return {
 					if ft == "oil" or ft:match("^Neogit") then
 						return
 					end
+					-- Enable Treesitter (and therefore folding) only for languages
+					-- in `ensure_installed`. Gating on the whitelist keeps us from
+					-- forcing Treesitter/fold options onto non-code buffers (e.g.
+					-- snacks pickers), which breaks them.
 					local lang = vim.treesitter.language.get_lang(vim.bo[args.buf].filetype)
 					if
 						lang

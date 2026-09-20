@@ -25,31 +25,42 @@ in
     syntaxHighlighting.enable = true;
 
     initContent = lib.mkAfter ''
-      # Local secrets (see home/secrets.template.env). Source if present.
-      [ -r "$HOME/.secrets.env" ] && source "$HOME/.secrets.env"
-${lib.optionalString isWSL ''
-      # WSL2's inotify is unreliable: webpack/Vite watchers fail with
-      # "ENOSPC: System limit for number of file watchers reached" even when the
-      # watch count is far below fs.inotify.max_user_watches (it fails to watch
-      # even a single directory). Force file-watchers to poll instead, which
-      # bypasses inotify entirely. See dotfiles README troubleshooting.
-      export WATCHPACK_POLLING=true
-      export CHOKIDAR_USEPOLLING=true
-''}
-      export NVM_DIR="$HOME/.nvm"
-      mkdir -p "$NVM_DIR"
-      source ${nvm}/nvm.sh
-      source ${nvm}/bash_completion
+            # Local secrets (see home/secrets.template.env). Source if present.
+            [ -r "$HOME/.secrets.env" ] && source "$HOME/.secrets.env"
+      ${lib.optionalString isWSL ''
+        # WSL2's inotify is unreliable: webpack/Vite watchers fail with
+        # "ENOSPC: System limit for number of file watchers reached" even when the
+        # watch count is far below fs.inotify.max_user_watches (it fails to watch
+        # even a single directory). Force file-watchers to poll instead, which
+        # bypasses inotify entirely. See dotfiles README troubleshooting.
+        export WATCHPACK_POLLING=true
+        export CHOKIDAR_USEPOLLING=true
+      ''}
+            export NVM_DIR="$HOME/.nvm"
+            mkdir -p "$NVM_DIR"
+            source ${nvm}/nvm.sh
+            source ${nvm}/bash_completion
 
-      # Set CHROME_BIN for karma tests (headless Chrome with Chromium)
-      export CHROME_BIN="${pkgs.chromium}/bin/chromium"
+            # Set CHROME_BIN for karma tests (headless Chrome with Chromium)
+            export CHROME_BIN="${pkgs.chromium}/bin/chromium"
 
-      # Report the working directory to the terminal via OSC 7 so WezTerm opens
-      # new panes/tabs (CurrentPaneDomain) in the current pane's directory.
-      _wezterm_osc7() { printf '\033]7;file://%s%s\033\\' "''${HOST}" "''${PWD}"; }
-      autoload -Uz add-zsh-hook
-      add-zsh-hook chpwd _wezterm_osc7
-      _wezterm_osc7
+            # Bypass the (Zscaler/WSL-injected) proxy for local dev traffic so local
+            # servers can talk to each other directly, e.g. the adaptive renderer on
+            # :4000 fetching the Angular app on :4200, or a local content-service on
+            # :3000. External hosts still go through the proxy. Prepend to preserve any
+            # bypass list already provided by WSL autoProxy.
+            # export NO_PROXY="localhost,127.0.0.1,::1,''${NO_PROXY}"
+            # export no_proxy="localhost,127.0.0.1,::1,''${no_proxy}"
+
+            # avoid JS stack allocation errors
+            exort NODE_OPTIONS=--max-old-space-size=8192
+
+            # Report the working directory to the terminal via OSC 7 so WezTerm opens
+            # new panes/tabs (CurrentPaneDomain) in the current pane's directory.
+            _wezterm_osc7() { printf '\033]7;file://%s%s\033\\' "''${HOST}" "''${PWD}"; }
+            autoload -Uz add-zsh-hook
+            add-zsh-hook chpwd _wezterm_osc7
+            _wezterm_osc7
     '';
 
     history = {
@@ -66,19 +77,23 @@ ${lib.optionalString isWSL ''
       cat = "bat";
       glg = "git log --oneline -10";
       ".." = "cd ..";
-    } // (
-      if isWSL then {
-        # Rebuild the whole NixOS system from this flake. Assumes the repo lives
-        # at ~/dotfiles.
-        rebuild = "sudo nixos-rebuild switch --flake ~/dotfiles#wsl";
-        # Update flake inputs then rebuild.
-        update = "nix flake update ~/dotfiles && sudo nixos-rebuild switch --flake ~/dotfiles#wsl";
-      } else {
-        # Native Ubuntu: standalone home-manager manages the user profile only.
-        rebuild = "home-manager switch --flake ~/dotfiles#${config.home.username}@ubuntu";
-        # Update flake inputs then rebuild.
-        update = "nix flake update ~/dotfiles && home-manager switch --flake ~/dotfiles#${config.home.username}@ubuntu";
-      }
+    }
+    // (
+      if isWSL then
+        {
+          # Rebuild the whole NixOS system from this flake. Assumes the repo lives
+          # at ~/dotfiles.
+          rebuild = "sudo nixos-rebuild switch --flake ~/dotfiles#wsl";
+          # Update flake inputs then rebuild.
+          update = "nix flake update ~/dotfiles && sudo nixos-rebuild switch --flake ~/dotfiles#wsl";
+        }
+      else
+        {
+          # Native Ubuntu: standalone home-manager manages the user profile only.
+          rebuild = "home-manager switch --flake ~/dotfiles#${config.home.username}@ubuntu";
+          # Update flake inputs then rebuild.
+          update = "nix flake update ~/dotfiles && home-manager switch --flake ~/dotfiles#${config.home.username}@ubuntu";
+        }
     );
   };
 

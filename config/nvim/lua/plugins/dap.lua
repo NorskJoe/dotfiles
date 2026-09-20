@@ -6,6 +6,11 @@
 -- The debugger binary itself is netcoredbg (Nix-provided, see home/neovim.nix).
 -- Build your project first (`dotnet build`) so a Debug .dll with symbols exists,
 -- then <F5> and pick the .dll to launch.
+
+-- Forward declaration: assigned inside `config` (which runs at plugin load,
+-- before any keymap can fire), so the `keys` closures below can reach it.
+local copy_locals
+
 return {
 	{
 		"mfussenegger/nvim-dap",
@@ -38,10 +43,114 @@ return {
 				mode = { "n", "v" },
 				desc = "Eval Expression",
 			},
+			{
+				"<leader>dy",
+				function() copy_locals() end,
+				desc = "Copy locals to clipboard",
+			},
 		},
 		config = function()
 			local dap = require("dap")
 			local dapui = require("dapui")
+
+			-- Copy all local variables at the current breakpoint to the system
+			-- clipboard (+ register) as an indented tree. Walks every non-global
+			-- scope of the current stack frame via the DAP protocol, recursing up
+			-- to 2 levels deep into structured values. Guards against circular
+			-- graphs (visited refs) and runaway dumps (node cap).
+			copy_locals = function()
+				local session = dap.session()
+				if not session then
+					vim.notify("No active debug session", vim.log.levels.WARN, { title = "DAP" })
+					return
+				end
+				local frame = session.current_frame
+				if not frame then
+					vim.notify("Not stopped at a frame", vim.log.levels.WARN, { title = "DAP" })
+					return
+				end
+
+				local MAX_DEPTH = 2 -- scope's direct vars = depth 1, one nesting = depth 2
+				local NODE_CAP = 500
+
+				local lines = {}
+				local node_count = 0
+				local truncated = false
+				local visited = {}
+
+				local function indent(level)
+					return string.rep("  ", level)
+				end
+
+				local function fmt(var)
+					local s = var.name .. " = " .. (var.value or "")
+					if var.type and var.type ~= "" then
+						s = s .. " (" .. var.type .. ")"
+					end
+					return s
+				end
+
+				-- Recursively request and render `ref`'s children at `level`.
+				-- Uses a pending counter so we only finish once every async
+				-- `variables` request has resolved.
+				local pending = 1 -- the scopes request itself
+				local function done_one()
+					pending = pending - 1
+					if pending == 0 then
+						local text = table.concat(lines, "\n")
+						if truncated then
+							text = text .. "\n... (truncated at " .. NODE_CAP .. " nodes)"
+						end
+						vim.fn.setreg("+", text)
+						vim.notify(
+							"Copied " .. node_count .. " locals to clipboard",
+							vim.log.levels.INFO,
+							{ title = "DAP" }
+						)
+					end
+				end
+
+				local function walk(ref, level)
+					if truncated or ref == 0 or level > MAX_DEPTH or visited[ref] then
+						return
+					end
+					visited[ref] = true
+					pending = pending + 1
+					session:request("variables", { variablesReference = ref }, function(err, body)
+						if not err and body and body.variables then
+							for _, var in ipairs(body.variables) do
+								if node_count >= NODE_CAP then
+									truncated = true
+									break
+								end
+								node_count = node_count + 1
+								table.insert(lines, indent(level) .. fmt(var))
+								if var.variablesReference and var.variablesReference ~= 0 then
+									walk(var.variablesReference, level + 1)
+								end
+							end
+						end
+						done_one()
+					end)
+				end
+
+				session:request("scopes", { frameId = frame.id }, function(err, body)
+					if err or not body or not body.scopes then
+						vim.notify("Failed to fetch scopes", vim.log.levels.ERROR, { title = "DAP" })
+						done_one()
+						return
+					end
+					for _, scope in ipairs(body.scopes) do
+						local name = scope.name or ""
+						local is_global = name:lower():find("global") ~= nil
+						if not scope.expensive and not is_global then
+							table.insert(lines, name)
+							walk(scope.variablesReference, 1)
+						end
+					end
+					done_one()
+				end)
+			end
 
 			dapui.setup()
 			require("nvim-dap-virtual-text").setup({})
