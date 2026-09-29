@@ -1,4 +1,8 @@
-{ config, pkgs, ... }:
+{ config, lib, pkgs, ... }:
+let
+  repo = "${config.home.homeDirectory}/dotfiles";
+  agentsMd = config.lib.file.mkOutOfStoreSymlink "${repo}/config/agents/AGENTS.md";
+in
 {
   home.packages = [ pkgs.opencode ];
   home.shellAliases.oc = "opencode";
@@ -13,8 +17,19 @@
 
   # Shared agent instructions (AGENTS.md standard). Single source of truth in the
   # repo, symlinked out-of-store to where each tool expects it so it can be edited
-  # live without a rebuild. Add more targets here for other tools later,
-  # e.g. Claude Code -> home.file.".claude/CLAUDE.md".
-  xdg.configFile."opencode/AGENTS.md".source =
-    config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/dotfiles/home/AGENTS.md";
+  # live without a rebuild. Add more targets here for other tools later.
+  xdg.configFile."opencode/AGENTS.md".source = agentsMd;
+  home.file.".claude/CLAUDE.md".source = agentsMd;
+
+  # Claude Code writes to ~/.claude/settings.json itself, so it can't be a
+  # read-only link. Merge just the statusLine key and leave everything else alone.
+  home.activation.claudeStatusLine = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    settings="$HOME/.claude/settings.json"
+    mkdir -p "$HOME/.claude"
+    [ -s "$settings" ] || echo '{}' > "$settings"
+    tmp=$(mktemp)
+    ${pkgs.jq}/bin/jq --arg cmd "bash ${repo}/config/claude/scripts/status-bar.sh" \
+      '.statusLine = {type: "command", command: $cmd}' "$settings" > "$tmp" \
+      && mv "$tmp" "$settings"
+  '';
 }

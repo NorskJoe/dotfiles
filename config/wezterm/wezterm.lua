@@ -1,36 +1,54 @@
 -- =============================================================================
---  WezTerm configuration template  (shared across Windows and native Linux)
+--  WezTerm configuration  (shared across Windows and native Linux)
 --
---  This single file supports two setups, detected at runtime via
---  wezterm.target_triple:
---    * Windows  -> WezTerm runs on Windows and launches into the "NixOS" WSL
---                  distro. Install by symlinking to %USERPROFILE% (see below).
---    * Linux    -> WezTerm runs natively (e.g. on Ubuntu). No WSL is involved;
---                  it opens a normal local shell. Installed + symlinked to
---                  ~/.config/wezterm by home-manager (see home/wezterm.nix).
+--  Detected at runtime via wezterm.target_triple:
+--    * Windows -> on launch, asks which host to open: WSL or PowerShell (pwsh).
+--                 No prompt when the WSL distro isn't installed (pure Windows).
+--                 Per-machine settings come from the untracked
+--                 ~/.wezterm.local.lua (written by scripts/install-windows.sh):
+--                   return {
+--                     wsl_domain = "WSL:NixOS",     -- optional, must match `wsl -l`
+--                     default_cwd = "D:/Projects",  -- optional, used for pwsh
+--                   }
+--    * Linux   -> WezTerm runs natively (e.g. Ubuntu) and opens a normal local
+--                 shell. Installed + linked by home-manager (home/wezterm.nix).
 --
---  Windows install location (pick one):
---    %USERPROFILE%\.wezterm.lua
---    %USERPROFILE%\.config\wezterm\wezterm.lua
---
---  Easiest on Windows: symlink it from this repo (run in an *elevated* PowerShell):
---    New-Item -ItemType SymbolicLink `
---      -Path "$env:USERPROFILE\.wezterm.lua" `
---      -Target "C:\dev\dotfiles\config\wezterm\wezterm.lua"
+--  Windows: scripts/install-windows.sh symlinks this file to ~/.wezterm.lua.
+--  Leader+w / Leader+p open a tab in WSL / pwsh; Ctrl+Shift+T (WezTerm default)
+--  opens a tab on the current pane's host.
 -- =============================================================================
 local wezterm = require("wezterm")
 local config = wezterm.config_builder()
 
--- True when WezTerm is running on Windows (and thus reaches into WSL). On native
--- Linux this is false and WezTerm just uses the local default domain.
 local is_windows = wezterm.target_triple:find("windows") ~= nil
 
--- The WSL distro name must match what you imported (see README). Default: "NixOS".
-local wsl_domain = "WSL:NixOS"
-
--- --- Launch straight into the NixOS WSL distro (Windows only) ---
+-- Per-machine overrides (untracked). Missing or broken file -> defaults.
+local local_cfg = {}
 if is_windows then
-	config.default_domain = wsl_domain
+	local ok, result = pcall(dofile, wezterm.home_dir .. "/.wezterm.local.lua")
+	if ok and type(result) == "table" then
+		local_cfg = result
+	end
+end
+
+local wsl_domain = local_cfg.wsl_domain or "WSL:NixOS"
+local pwsh_args = { "pwsh.exe", "-NoLogo" }
+
+local function wsl_available()
+	for _, d in ipairs(wezterm.default_wsl_domains()) do
+		if d.name == wsl_domain then
+			return true
+		end
+	end
+	return false
+end
+
+-- The local domain is pwsh; WSL is opened on demand (startup prompt / Leader+w).
+if is_windows then
+	config.default_prog = pwsh_args
+	if local_cfg.default_cwd then
+		config.default_cwd = local_cfg.default_cwd
+	end
 end
 
 -- --- Appearance (tweak to taste) ---
@@ -40,11 +58,10 @@ config.font = wezterm.font_with_fallback({
 	"Symbols Nerd Font Mono",
 })
 config.font_size = 11.0
-config.window_background_opacity = 0.9
 config.hide_tab_bar_if_only_one_tab = true
 config.underline_thickness = 1
 config.window_close_confirmation = "NeverPrompt"
--- config.window_decorations = "RESIZE"
+
 
 -- Make Alt+<key> send proper escape sequences (so <A-j>/<A-k> work in nvim)
 -- instead of Windows treating Left Alt as a compose/dead key.
@@ -91,6 +108,21 @@ config.keys = {
 	},
 }
 
+if is_windows then
+	-- Leader + w: new tab in WSL
+	table.insert(config.keys, {
+		key = "w",
+		mods = "LEADER",
+		action = wezterm.action.SpawnCommandInNewTab({ domain = { DomainName = wsl_domain } }),
+	})
+	-- Leader + p: new tab in PowerShell
+	table.insert(config.keys, {
+		key = "p",
+		mods = "LEADER",
+		action = wezterm.action.SpawnCommandInNewTab({ domain = "DefaultDomain", args = pwsh_args }),
+	})
+end
+
 -- keytable for resizing panes
 config.key_tables = {
 	-- Leader + r, h/j/k/l
@@ -103,18 +135,40 @@ config.key_tables = {
 	},
 }
 
--- Spawn the window maximized to fill the screen. On Windows, open it directly in
--- the WSL distro; on native Linux, open a normal local window.
-wezterm.on("gui-startup", function(cmd)
-	local spawn_args = {}
-	if is_windows then
-		spawn_args.domain = { DomainName = wsl_domain }
-	end
-	local tab, pane, window = wezterm.mux.spawn_window(spawn_args)
+-- Asks which host the first tab should use. The window starts on pwsh (the
+-- local domain); picking WSL opens a WSL tab and closes the pwsh one. With the
+-- tab bar hidden for a single tab, the swap is invisible. Esc keeps pwsh.
+local host_prompt = wezterm.action.InputSelector({
+	title = "Open host",
+	description = "Choose a host (1/2, or Enter). Esc keeps PowerShell.",
+	alphabet = "12",
+	choices = {
+		{ id = "wsl", label = "WSL (" .. wsl_domain:gsub("^WSL:", "") .. ")" },
+		{ id = "pwsh", label = "PowerShell" },
+	},
+	action = wezterm.action_callback(function(window, pane, id)
+		if id == "wsl" then
+			window:mux_window():spawn_tab({ domain = { DomainName = wsl_domain } })
+			-- CloseCurrentPane acts on the active pane, so re-activate the pwsh
+			-- placeholder first; closing it leaves the WSL tab active.
+			pane:activate()
+			window:perform_action(wezterm.action.CloseCurrentPane({ confirm = false }), pane)
+		end
+	end),
+})
 
-	-- window:gui_window():maximize()
-	local active_screen = wezterm.gui.screens()["active"];
-	window:gui_window():set_inner_size(active_screen.width * 0.8, active_screen.height * 0.8)
+-- Open the window at 80% of the screen, then (Windows with WSL) ask for the host.
+wezterm.on("gui-startup", function(cmd)
+	local tab, pane, window = wezterm.mux.spawn_window(cmd or {})
+	local gui_window = window:gui_window()
+
+	-- gui_window:maximize()
+	local active_screen = wezterm.gui.screens()["active"]
+	gui_window:set_inner_size(active_screen.width * 0.8, active_screen.height * 0.8)
+
+	if is_windows and not cmd and wsl_available() then
+		gui_window:perform_action(host_prompt, pane)
+	end
 end)
 
 return config

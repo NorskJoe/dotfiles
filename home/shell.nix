@@ -53,7 +53,7 @@ in
             # export no_proxy="localhost,127.0.0.1,::1,''${no_proxy}"
 
             # avoid JS stack allocation errors
-            exort NODE_OPTIONS=--max-old-space-size=8192
+            export NODE_OPTIONS=--max-old-space-size=8192
 
             # Report the working directory to the terminal via OSC 7 so WezTerm opens
             # new panes/tabs (CurrentPaneDomain) in the current pane's directory.
