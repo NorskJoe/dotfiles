@@ -1,11 +1,17 @@
 # Claude Code
 
-## Global instructions (AGENTS.md) and status line setup
+## Global instructions (AGENTS.md), keybindings, model and status line setup
 
 `config/agents/AGENTS.md` holds the global agent instructions. It is named
 `AGENTS.md` because other harnesses read it too; Claude Code only reads
-`~/.claude/CLAUDE.md`, so that path is a symlink to it. The `statusLine` key in
-`~/.claude/settings.json` is merged in as well (other keys are left alone).
+`~/.claude/CLAUDE.md`, so that path is a symlink to it. Likewise
+`~/.claude/keybindings.json` is a symlink to `config/claude/keybindings.json`
+(plain `tab` cycles permission modes; shift+tab still works). The `statusLine` and
+`model` keys in `~/.claude/settings.json` are merged in as well (other keys are left
+alone).
+`model` is `opusplan`: Opus in plan mode, Sonnet in every other mode (always the
+latest of each). Sessions start in plan mode (`permissions.defaultMode`), so one tab
+reaches auto mode on Sonnet.
 
 | Setup | How it is applied |
 |---|---|

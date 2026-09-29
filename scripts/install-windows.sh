@@ -8,7 +8,8 @@
 #   3. ~/.wezterm.local.lua      -> per-machine WSL distro + pwsh cwd (only created if missing)
 #   4. pwsh $PROFILE             -> config/powershell/Microsoft.PowerShell_profile.ps1
 #   5. ~/.claude/CLAUDE.md       -> config/agents/AGENTS.md
-#   6. ~/.claude/settings.json   -> statusLine key merged in (other keys untouched)
+#   6. ~/.claude/keybindings.json -> config/claude/keybindings.json
+#   7. ~/.claude/settings.json   -> statusLine, model and permissions.defaultMode merged in (other keys untouched)
 #
 # Symlinks need Developer Mode (Settings > System > For developers) or an admin shell.
 
@@ -108,6 +109,7 @@ fi
 # 5. Claude Code ---------------------------------------------------------------
 info "Claude Code"
 link "$REPO/config/agents/AGENTS.md" "$CLAUDE_DIR/CLAUDE.md"
+link "$REPO/config/claude/keybindings.json" "$CLAUDE_DIR/keybindings.json"
 
 if [[ -n $PWSH ]]; then
     SETTINGS=$(cygpath -m "$CLAUDE_DIR/settings.json") \
@@ -119,10 +121,15 @@ if [[ -n $PWSH ]]; then
         } else { [pscustomobject]@{} }
         $s | Add-Member -NotePropertyName statusLine -Force -NotePropertyValue ([pscustomobject]@{
             type = "command"; command = $Command })
+        # opusplan: Opus in plan mode, Sonnet in every other mode.
+        $s | Add-Member -NotePropertyName model -Force -NotePropertyValue "opusplan"
+        # Start every session in plan mode (one tab reaches auto).
+        if (-not $s.permissions) { $s | Add-Member -NotePropertyName permissions -Force -NotePropertyValue ([pscustomobject]@{}) }
+        $s.permissions | Add-Member -NotePropertyName defaultMode -Force -NotePropertyValue "plan"
         New-Item -ItemType Directory -Force (Split-Path $Settings) | Out-Null
         $s | ConvertTo-Json -Depth 20 | Set-Content $Settings -Encoding utf8NoBOM
     '
-    echo "ok      $CLAUDE_DIR/settings.json (statusLine set)"
+    echo "ok      $CLAUDE_DIR/settings.json (statusLine, model and defaultMode set)"
 fi
 
 info "Done. Restart WezTerm and Claude Code."

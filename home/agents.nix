@@ -20,16 +20,20 @@ in
   # live without a rebuild. Add more targets here for other tools later.
   xdg.configFile."opencode/AGENTS.md".source = agentsMd;
   home.file.".claude/CLAUDE.md".source = agentsMd;
+  home.file.".claude/keybindings.json".source =
+    config.lib.file.mkOutOfStoreSymlink "${repo}/config/claude/keybindings.json";
 
   # Claude Code writes to ~/.claude/settings.json itself, so it can't be a
-  # read-only link. Merge just the statusLine key and leave everything else alone.
-  home.activation.claudeStatusLine = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+  # read-only link. Merge just the statusLine, model and permissions.defaultMode keys and leave everything
+  # else alone. opusplan = Opus in plan mode, Sonnet in every other mode; sessions
+  # start in plan mode.
+  home.activation.claudeSettings = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
     settings="$HOME/.claude/settings.json"
     mkdir -p "$HOME/.claude"
     [ -s "$settings" ] || echo '{}' > "$settings"
     tmp=$(mktemp)
     ${pkgs.jq}/bin/jq --arg cmd "bash ${repo}/config/claude/scripts/status-bar.sh" \
-      '.statusLine = {type: "command", command: $cmd}' "$settings" > "$tmp" \
+      '.statusLine = {type: "command", command: $cmd} | .model = "opusplan" | .permissions.defaultMode = "plan"' "$settings" > "$tmp" \
       && mv "$tmp" "$settings"
   '';
 }
