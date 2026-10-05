@@ -162,9 +162,9 @@ wezterm.on("gui-startup", function(cmd)
 	local tab, pane, window = wezterm.mux.spawn_window(cmd or {})
 	local gui_window = window:gui_window()
 
-	-- gui_window:maximize()
-	local active_screen = wezterm.gui.screens()["active"]
-	gui_window:set_inner_size(active_screen.width * 0.8, active_screen.height * 0.8)
+	gui_window:maximize()
+	-- local active_screen = wezterm.gui.screens()["active"]
+	-- gui_window:set_inner_size(active_screen.width * 0.8, active_screen.height * 0.8)
 
 	if is_windows and not cmd and wsl_available() then
 		gui_window:perform_action(host_prompt, pane)
