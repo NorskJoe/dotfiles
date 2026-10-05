@@ -2,7 +2,7 @@
 # Claude Code status bar. Pure bash + git: no jq/node needed, so it works on
 # Windows (Git Bash), Linux and macOS.
 #
-# Output: Opus 5.5 │ ctx ▓▓▓░░░░░░░ 31% │ 5h 42% (resets 14:30) │  master │ ~/Projects/dotfiles
+# Output: Opus 5.5 │ ctx ▓▓▓░░░░░░░ 31% │ 5h 42% (resets 14:30) │ 7d 18% (resets Tue 09:00) │ spend 63% (resets Oct 01) │  master │ ~/Projects/dotfiles
 # Claude Code pipes a JSON blob to stdin. Segments with missing data are skipped.
 
 COLOR="blue"   # blue | orange | teal | green | lavender | rose | gold | slate | cyan | gray
@@ -66,20 +66,27 @@ if [[ -n $ctx ]]; then
     segments+=("${C_DIM}ctx ${C_ACC}${bar_on}${C_EMPTY}${bar_off} ${C_ACC}${pct}%${C_RST}")
 fi
 
-# --- 5-hour session usage + reset time ---
-five=$(scope "$flat" five_hour)
-if [[ -n $five ]]; then
-    sess=$(json_num "$five" used_percentage)
-    if [[ -n $sess ]]; then
-        seg="${C_DIM}5h ${C_ACC}$(round_int "$sess")%${C_RST}"
-        resets=$(json_num "$five" resets_at)
-        if [[ -n $resets ]]; then
-            t=$(date -d "@${resets%%.*}" +%H:%M 2>/dev/null || date -r "${resets%%.*}" +%H:%M 2>/dev/null)
-            [[ -n $t ]] && seg+=" ${C_DIM}(resets ${t})${C_RST}"
-        fi
-        segments+=("$seg")
+# rate_seg <key> <label> <date_fmt> -> appends "label N% (resets <time>)" for a rate_limits window
+rate_seg() {
+    local win used resets t seg
+    win=$(scope "$flat" "$1")
+    win=${win%%\}*}   # windows have no nested objects: stop at the first }
+    [[ -z $win ]] && return
+    used=$(json_num "$win" used_percentage)
+    [[ -z $used ]] && return
+    seg="${C_DIM}$2 ${C_ACC}$(round_int "$used")%${C_RST}"
+    resets=$(json_num "$win" resets_at)
+    if [[ -n $resets ]]; then
+        t=$(date -d "@${resets%%.*}" +"$3" 2>/dev/null || date -r "${resets%%.*}" +"$3" 2>/dev/null)
+        [[ -n $t ]] && seg+=" ${C_DIM}(resets ${t})${C_RST}"
     fi
-fi
+    segments+=("$seg")
+}
+
+# --- usage windows + reset times (each hidden when absent) ---
+rate_seg five_hour   5h    %H:%M
+rate_seg seven_day   7d    "%a %H:%M"
+rate_seg spend_limit spend "%b %d"
 
 # --- directory (needed for git too) ---
 dir=$(json_str "$flat" current_dir)

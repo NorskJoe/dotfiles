@@ -24,16 +24,17 @@ in
     config.lib.file.mkOutOfStoreSymlink "${repo}/config/claude/keybindings.json";
 
   # Claude Code writes to ~/.claude/settings.json itself, so it can't be a
-  # read-only link. Merge just the statusLine, model and permissions.defaultMode keys and leave everything
-  # else alone. opusplan = Opus in plan mode, Sonnet in every other mode; sessions
-  # start in plan mode.
+  # read-only link. Merge just the statusLine, model, env.ANTHROPIC_MODEL and
+  # permissions.defaultMode keys and leave everything else alone. opusplan = Opus in
+  # plan mode, Sonnet in every other mode; sessions start in plan mode. /model
+  # overwrites .model, so env.ANTHROPIC_MODEL (which outranks it) pins opusplan.
   home.activation.claudeSettings = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
     settings="$HOME/.claude/settings.json"
     mkdir -p "$HOME/.claude"
     [ -s "$settings" ] || echo '{}' > "$settings"
     tmp=$(mktemp)
     ${pkgs.jq}/bin/jq --arg cmd "bash ${repo}/config/claude/scripts/status-bar.sh" \
-      '.statusLine = {type: "command", command: $cmd} | .model = "opusplan" | .permissions.defaultMode = "plan"' "$settings" > "$tmp" \
+      '.statusLine = {type: "command", command: $cmd} | .model = "opusplan" | .env.ANTHROPIC_MODEL = "opusplan" | .permissions.defaultMode = "plan"' "$settings" > "$tmp" \
       && mv "$tmp" "$settings"
   '';
 }

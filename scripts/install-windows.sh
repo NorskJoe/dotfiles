@@ -9,7 +9,7 @@
 #   4. pwsh $PROFILE             -> config/powershell/Microsoft.PowerShell_profile.ps1
 #   5. ~/.claude/CLAUDE.md       -> config/agents/AGENTS.md
 #   6. ~/.claude/keybindings.json -> config/claude/keybindings.json
-#   7. ~/.claude/settings.json   -> statusLine, model and permissions.defaultMode merged in (other keys untouched)
+#   7. ~/.claude/settings.json   -> statusLine, model, env.ANTHROPIC_MODEL and permissions.defaultMode merged in (other keys untouched)
 #
 # Symlinks need Developer Mode (Settings > System > For developers) or an admin shell.
 
@@ -123,13 +123,16 @@ if [[ -n $PWSH ]]; then
             type = "command"; command = $Command })
         # opusplan: Opus in plan mode, Sonnet in every other mode.
         $s | Add-Member -NotePropertyName model -Force -NotePropertyValue "opusplan"
+        # /model overwrites "model"; ANTHROPIC_MODEL outranks it, so new sessions stay on opusplan.
+        if (-not $s.env) { $s | Add-Member -NotePropertyName env -Force -NotePropertyValue ([pscustomobject]@{}) }
+        $s.env | Add-Member -NotePropertyName ANTHROPIC_MODEL -Force -NotePropertyValue "opusplan"
         # Start every session in plan mode (one tab reaches auto).
         if (-not $s.permissions) { $s | Add-Member -NotePropertyName permissions -Force -NotePropertyValue ([pscustomobject]@{}) }
         $s.permissions | Add-Member -NotePropertyName defaultMode -Force -NotePropertyValue "plan"
         New-Item -ItemType Directory -Force (Split-Path $Settings) | Out-Null
         $s | ConvertTo-Json -Depth 20 | Set-Content $Settings -Encoding utf8NoBOM
     '
-    echo "ok      $CLAUDE_DIR/settings.json (statusLine, model and defaultMode set)"
+    echo "ok      $CLAUDE_DIR/settings.json (statusLine, model, ANTHROPIC_MODEL and defaultMode set)"
 fi
 
 info "Done. Restart WezTerm and Claude Code."

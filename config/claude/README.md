@@ -6,12 +6,20 @@
 `AGENTS.md` because other harnesses read it too; Claude Code only reads
 `~/.claude/CLAUDE.md`, so that path is a symlink to it. Likewise
 `~/.claude/keybindings.json` is a symlink to `config/claude/keybindings.json`
-(plain `tab` cycles permission modes; shift+tab still works). The `statusLine` and
-`model` keys in `~/.claude/settings.json` are merged in as well (other keys are left
-alone).
+(plain `tab` cycles permission modes; shift+tab still works). The `statusLine`,
+`model`, `env.ANTHROPIC_MODEL` and `permissions.defaultMode` keys in
+`~/.claude/settings.json` are merged in as well (other keys are left alone).
 `model` is `opusplan`: Opus in plan mode, Sonnet in every other mode (always the
 latest of each). Sessions start in plan mode (`permissions.defaultMode`), so one tab
 reaches auto mode on Sonnet.
+Saving a default via `/model` overwrites `model`, so `env.ANTHROPIC_MODEL` is also set
+to `opusplan`. It outranks `model`, so `/model` only changes the current session and
+new sessions start on `opusplan` again.
+Caveat: once a session's context exceeds 200k tokens, `opusplan` stops upgrading plan
+mode to Opus and plan mode stays on Sonnet (Opus has a 200k window). This is built in
+and not configurable, and `opusplan[1m]` behaves the same. It shows up on resumed
+sessions because they are usually large. Run `/compact` to get back under 200k and
+plan mode returns to Opus.
 
 | Setup | How it is applied |
 |---|---|
@@ -29,7 +37,7 @@ reaches auto mode on Sonnet.
 `scripts/status-bar.sh` renders the Claude Code status line:
 
 ```
-Opus 5.5 │ ctx ▓▓▓░░░░░░░ 31% │ 5h 42% (resets 14:30) │  master │ ~/Projects/dotfiles
+Opus 5.5 │ ctx ▓▓▓░░░░░░░ 31% │ 5h 42% (resets 14:30) │ 7d 18% (resets Tue 09:00) │ spend 63% (resets Oct 01) │  master │ ~/Projects/dotfiles
 ```
 
 | Segment | Source (JSON Claude Code sends on stdin) |
@@ -37,8 +45,14 @@ Opus 5.5 │ ctx ▓▓▓░░░░░░░ 31% │ 5h 42% (resets 14:30) �
 | Model | `model.display_name` |
 | Context bar and % | `context_window.used_percentage` |
 | Session (5-hour) usage and reset time | `rate_limits.five_hour.used_percentage` / `resets_at` |
+| Weekly (7-day) usage and reset time | `rate_limits.seven_day.used_percentage` / `resets_at` |
+| Spend limit usage and reset date | `rate_limits.spend_limit.used_percentage` / `resets_at` |
 | Git branch (short SHA if detached) | `git branch --show-current` in the working dir |
 | Directory (`~` shortened) | `workspace.current_dir` (falls back to `cwd`) |
+
+Claude Code exposes no monthly window. `spend_limit` is the closest thing: it only
+appears behind a Claude apps gateway that sets a spend limit, and its percentage can
+exceed 100. Pro/Max accounts get `5h` and `7d` instead.
 
 Segments with no data are hidden. For example, `rate_limits` only appears for
 Claude.ai subscribers after the first API response, and the branch is hidden
@@ -62,6 +76,6 @@ outside a git repo.
 ## Testing without Claude
 
 ```bash
-echo '{"model":{"display_name":"Opus 5.5"},"workspace":{"current_dir":"C:/dev/dotfiles"},"context_window":{"used_percentage":31},"rate_limits":{"five_hour":{"used_percentage":42,"resets_at":1790000000}}}' \
+echo '{"model":{"display_name":"Opus 5.5"},"workspace":{"current_dir":"C:/dev/dotfiles"},"context_window":{"used_percentage":31},"rate_limits":{"five_hour":{"used_percentage":42,"resets_at":1790000000},"seven_day":{"used_percentage":18,"resets_at":1790300000},"spend_limit":{"used_percentage":63,"resets_at":1791000000}}}' \
   | bash config/claude/scripts/status-bar.sh
 ```
