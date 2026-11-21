@@ -1,4 +1,8 @@
-{ config, pkgs, ... }:
+{ config, lib, pkgs, platform ? "wsl", ... }:
+let
+  # The headless Ubuntu Server profile deliberately omits the .NET/C# tooling.
+  isServer = platform == "ubuntu-server";
+in
 {
   # Install Neovim as a plain package. We deliberately do NOT use
   # `programs.neovim.enable`, because that makes Home Manager manage
@@ -21,14 +25,10 @@
     pkgs.yaml-language-server
     pkgs.gopls
     pkgs.pyright
-    pkgs.roslyn-ls # C# (used via roslyn.nvim)
     pkgs.inotify-tools # inotifywait: lets Neovim use event-based LSP file watching (roslyn new-file detection) instead of polling
     pkgs.clang-tools # clangd + clang-format
     pkgs.sqls
     pkgs.bash-language-server
-
-    # Debug adapters, driven by nvim-dap (see config/nvim/.../dap.lua).
-    pkgs.netcoredbg # CoreCLR debugger for .NET/C# stepping
 
     # Formatters, orchestrated by conform.nvim.
     pkgs.stylua
@@ -36,9 +36,18 @@
     pkgs.prettierd
     pkgs.gofumpt
     pkgs.ruff
-    pkgs.csharpier
     pkgs.sql-formatter
     pkgs.shfmt
+  ]
+  ++ lib.optionals (!isServer) [
+    # C# language server (used via roslyn.nvim).
+    pkgs.roslyn-ls
+
+    # Debug adapters, driven by nvim-dap (see config/nvim/.../dap.lua).
+    pkgs.netcoredbg # CoreCLR debugger for .NET/C# stepping
+
+    # C# formatter, orchestrated by conform.nvim.
+    pkgs.csharpier
   ];
 
   home.sessionVariables.EDITOR = "nvim";

@@ -107,6 +107,12 @@ return {
 	{
 		"seblj/roslyn.nvim",
 		ft = "cs",
+		-- The headless Ubuntu Server profile does not install roslyn-ls. Skip
+		-- loading this plugin when the server binary is absent so .cs files
+		-- still open normally.
+		cond = function()
+			return vim.fn.executable("Microsoft.CodeAnalysis.LanguageServer") == 1
+		end,
 		opts = {},
 		keys = {
 			{

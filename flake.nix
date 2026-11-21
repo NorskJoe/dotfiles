@@ -62,5 +62,17 @@
           };
           modules = [ ./home/ubuntu.nix ];
         };
+
+      # --- Headless Ubuntu Server (VM): Neovim only ---
+      # Apply with: nix run home-manager/release-26.05 -- switch --flake ~/dotfiles#joe@ubuntu-server
+      homeConfigurations."${username}@ubuntu-server" =
+        home-manager.lib.homeManagerConfiguration {
+          pkgs = nixpkgs.legacyPackages.${system};
+          extraSpecialArgs = {
+            inherit username;
+            platform = "ubuntu-server";
+          };
+          modules = [ ./home/ubuntu-server.nix ];
+        };
     };
 }

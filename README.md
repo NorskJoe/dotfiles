@@ -1,23 +1,26 @@
 # dotfiles - cross-platform dev environment
 
 Declarative, reproducible development environment. One branch, shared config,
-three supported setups. **Pick the one that matches your machine and follow only
+four supported setups. **Pick the one that matches your machine and follow only
 that section:**
 
-| | [Windows + WSL](#windows--wsl-setup) | [Windows (no WSL)](#windows-no-wsl-setup) | [Ubuntu](#ubuntu-setup) |
-|---|---|---|---|
-| What Nix manages | whole NixOS-WSL OS (`nixosConfigurations.wsl`) | nothing | user profile only (`homeConfigurations."joe@ubuntu"`) |
-| Installer | `nixos-rebuild` (inside WSL) + `install-windows.sh` (Windows) | `install-windows.sh` | `bootstrap-ubuntu.sh` |
-| Shell / editor tooling | Nix (zsh, Neovim, LSPs) | pwsh, install tools yourself | Nix (zsh, Neovim, LSPs) |
-| WezTerm | Windows app, asks WSL or pwsh at launch | Windows app, opens pwsh | native (Nix) |
-| Claude / opencode config | Nix (WSL) + script (Windows) | script | Nix |
-| VSCode | Remote-WSL | - | - |
+| | [Windows + WSL](#windows--wsl-setup) | [Windows (no WSL)](#windows-no-wsl-setup) | [Ubuntu](#ubuntu-setup) | [Ubuntu Server](#ubuntu-server-setup) |
+|---|---|---|---|---|
+| What Nix manages | whole NixOS-WSL OS (`nixosConfigurations.wsl`) | nothing | user profile only (`homeConfigurations."joe@ubuntu"`) | Neovim only (`homeConfigurations."joe@ubuntu-server"`) |
+| Installer | `nixos-rebuild` (inside WSL) + `install-windows.sh` (Windows) | `install-windows.sh` | `bootstrap-ubuntu.sh` | `bootstrap-ubuntu-server.sh` |
+| Shell / editor tooling | Nix (zsh, Neovim, LSPs) | pwsh, install tools yourself | Nix (zsh, Neovim, LSPs) | Nix (Neovim, LSPs); system shell from apt |
+| WezTerm | Windows app, asks WSL or pwsh at launch | Windows app, opens pwsh | native (Nix) | - |
+| Claude / opencode config | Nix (WSL) + script (Windows) | script | Nix | - |
+| VSCode | Remote-WSL | - | - | - |
 
-Nix-managed tooling (WSL and Ubuntu):
+Nix-managed tooling (WSL, Ubuntu, Ubuntu Server):
 
 - **Editor:** Neovim + LSPs/formatters via Nix
-- **Shell:** zsh (+ starship, zoxide, fzf)
-- **Terminal:** WezTerm, one shared platform-aware `wezterm.lua`
+- **Shell:** zsh (+ starship, zoxide, fzf) on WSL and Ubuntu desktop
+- **Terminal:** WezTerm, one shared platform-aware `wezterm.lua`, on WSL and
+  Ubuntu desktop
+
+The headless Ubuntu Server profile installs only the editor tooling.
 
 ---
 
@@ -272,6 +275,81 @@ sudo usermod -aG docker "$USER"
 
 ---
 
+## Ubuntu Server setup
+
+On a headless Ubuntu Server VM, Nix manages **only your user profile** via
+standalone Home Manager, and that profile is intentionally minimal: Neovim plus
+its LSPs, formatters, and runtime tools. There is no desktop shell, GUI app,
+agent, Docker, or .NET stack. apt still owns the base OS.
+
+### 1. Clone and edit
+
+```bash
+sudo apt-get update && sudo apt-get install -y git
+git clone https://github.com/NorskJoe/dotfiles.git ~/dotfiles   # config paths assume this location
+```
+
+Edit the templates you own:
+
+- `config/nvim/init.lua` - your Neovim config.
+- `flake.nix` - change `username` if your login is not `joe`; the config key
+  then becomes `<username>@ubuntu-server` in every command below.
+
+### 2. Run the bootstrap
+
+```bash
+~/dotfiles/scripts/bootstrap-ubuntu-server.sh
+```
+
+The script is idempotent and safe to re-run. It:
+
+1. Installs `git` and `curl` via apt if missing.
+2. Installs Nix via the Determinate Systems installer (flakes on by default).
+3. Runs `home-manager switch --flake ~/dotfiles#joe@ubuntu-server`.
+
+Open a new SSH session afterwards, then run `nvim`. On first launch lazy.nvim
+clones the pinned plugins and nvim-treesitter builds the parsers.
+
+<details>
+<summary>Manual equivalent of the bootstrap</summary>
+
+```bash
+# Install Nix (flakes enabled by default)
+curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install
+
+# New shell, then apply the config
+nix run home-manager/release-26.05 -- switch --flake ~/dotfiles#joe@ubuntu-server
+```
+
+</details>
+
+### 3. Day-to-day
+
+This profile does not install zsh, so there is no `rebuild` alias. Rebuild with:
+
+```bash
+nix run home-manager/release-26.05 -- switch --flake ~/dotfiles#joe@ubuntu-server -b backup
+```
+
+Roll back with `home-manager generations`, or by running an older generation's
+`activate` script.
+
+### Headless notes
+
+- **Clipboard:** when connected over SSH with no X11/Wayland display, Neovim uses
+  the terminal's OSC 52 support for `"+` / `"*`. Copying works in most terminals;
+  pasting requires the terminal to allow OSC 52 reads. Otherwise use the
+  terminal's own paste shortcut.
+- **Fonts and colours:** install a Nerd Font and enable truecolor on the terminal
+  you connect from. The server does not need either.
+- **Alt keymaps:** `<A-j>` / `<A-k>` depend on the client terminal forwarding Alt.
+- **.NET/C#:** intentionally omitted. The `roslyn.nvim` plugin disables itself
+  when `Microsoft.CodeAnalysis.LanguageServer` is not on `PATH`.
+- Other CLI tools are not installed by this profile; add them with apt or extend
+  `home/ubuntu-server.nix`.
+
+---
+
 ## Reference
 
 ### Windows installer
@@ -324,7 +402,7 @@ return {
 
 ```
 dotfiles/
-├── flake.nix                  # entry point: nixosConfigurations.wsl + homeConfigurations."joe@ubuntu"
+├── flake.nix                  # entry point: wsl + "joe@ubuntu" + "joe@ubuntu-server"
 ├── hosts/
 │   └── wsl/
 │       └── configuration.nix  # system-level NixOS config (WSL, users, VSCode support)
@@ -332,6 +410,7 @@ dotfiles/
 │   ├── common.nix             # shared Home Manager base (imports + shared packages)
 │   ├── home.nix               # WSL entrypoint (imports common.nix)
 │   ├── ubuntu.nix             # native Ubuntu entrypoint (imports common.nix, allowUnfree)
+│   ├── ubuntu-server.nix      # headless Ubuntu Server entrypoint (Neovim only)
 │   ├── shell.nix              # zsh + prompt config (platform-aware aliases)
 │   ├── git.nix                # git identity/config  <- EDIT your name/email
 │   ├── agents.nix             # opencode + Claude Code: AGENTS.md link, statusLine
@@ -339,6 +418,7 @@ dotfiles/
 │   └── neovim.nix             # installs Neovim + LSPs, symlinks config/nvim
 ├── scripts/
 │   ├── bootstrap-ubuntu.sh    # one-shot setup for a fresh native Ubuntu box
+│   ├── bootstrap-ubuntu-server.sh # one-shot setup for a headless Ubuntu Server VM
 │   └── install-windows.sh     # Windows side (pure Windows or WSL host), run from Git Bash
 └── config/
     ├── agents/AGENTS.md       # global agent instructions (Claude CLAUDE.md, opencode)
@@ -349,9 +429,10 @@ dotfiles/
         └── wezterm.lua        # shared WezTerm config (Linux native / Windows)
 ```
 
-The shared Home Manager modules in `home/` are imported by both Nix targets.
-OS-specific behaviour (rebuild aliases, WSL inotify workaround) is branched on a
-`platform` argument passed from `flake.nix`.
+The shared Home Manager modules in `home/` are imported by the WSL, Ubuntu, and
+Ubuntu Server targets. OS-specific behaviour (rebuild aliases, WSL inotify
+workaround, server-only package omissions) is branched on a `platform` argument
+passed from `flake.nix`.
 
 > **NixOS-WSL vs native Ubuntu.** Ubuntu is not NixOS, so `nixosConfigurations`
 > cannot manage it. On Ubuntu you install the Nix package manager and apply the
@@ -364,6 +445,7 @@ OS-specific behaviour (rebuild aliases, WSL inotify workaround) is branched on a
 | Task                             | Command                                        |
 | -------------------------------- | ---------------------------------------------- |
 | Rebuild after editing config     | `rebuild` (WSL, Ubuntu)                        |
+| Rebuild (Ubuntu Server)          | `nix run home-manager/release-26.05 -- switch --flake ~/dotfiles#joe@ubuntu-server -b backup` |
 | Update all inputs + rebuild      | `update` (WSL, Ubuntu)                         |
 | Roll back (WSL)                  | `sudo nixos-rebuild switch --rollback`         |
 | Roll back (Ubuntu)               | `home-manager generations` then activate one   |

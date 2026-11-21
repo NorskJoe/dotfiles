@@ -20,6 +20,30 @@ opt.number = true
 opt.relativenumber = true
 opt.mouse = "a"
 opt.clipboard = "unnamedplus" -- share clipboard with Windows/host
+
+-- Headless SSH: there is no X11/Wayland clipboard. Use the terminal's OSC 52
+-- support so yanks reach the local clipboard. Pasting also requires terminal
+-- OSC 52 read support; if the terminal blocks it, use its own paste shortcut.
+if
+	(vim.env.SSH_TTY or vim.env.SSH_CONNECTION)
+	and not vim.env.DISPLAY
+	and not vim.env.WAYLAND_DISPLAY
+then
+	local ok, osc52 = pcall(require, "vim.ui.clipboard.osc52")
+	if ok then
+		vim.g.clipboard = {
+			name = "OSC52",
+			copy = {
+				["+"] = osc52.copy("+"),
+				["*"] = osc52.copy("*"),
+			},
+			paste = {
+				["+"] = osc52.paste("+"),
+				["*"] = osc52.paste("*"),
+			},
+		}
+	end
+end
 opt.ignorecase = true
 opt.smartcase = true
 opt.termguicolors = true
